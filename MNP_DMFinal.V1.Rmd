@@ -575,10 +575,7 @@ lines(res033$x,res033$y,type="l",col="blue")
 legend(5,1.5,c("h=0.033"),col=c("blue"),lty=1:1)
 
 ```
-
 <div style="page-break-after: always;"></div>
-
-
 ### 1.2 Détermination d'un h optimal
 Représentation graphique de l'estimation par noyau de la densité ed X: g(x), où h.n est la fenêtre donnee par validation croisee ou par une autre methode que l'on precisera.
   
@@ -622,9 +619,7 @@ On obtient le même résultat avec la fonction:   bw.nrd
   legend(6,0.8,c("bw.ucv => h=0.0567", "Silverman => h=0.5057"),col=c("blue","red"),lty=1:1)
 
 ```
-
 <div style="page-break-after: always;"></div>
-
 #### 1.2.3 Méthodes alternatives
   
 ##### Fonction density
@@ -657,7 +652,7 @@ lines(density(x = X, bw = h_density, kernel = "optcosine"), col = 8)
 legend(6,0.3,c("density", "epanechnikov", "gaussian", "rectangular", "triangular", "biweight", "cosine", "optcosine"),col=1:8,lty=1:1)
 
 ```
-<div style="page-break-after: always;"></div>
+
 ##### Fonction dpik 
 méthode du package Kersmooth: Select a Bandwidth for Kernel Density Estimation
 
@@ -675,7 +670,7 @@ La fenêtre h est obtenu par (UCV) de Least Squares Cross-Validation curve (LSCV
   h_ucv_mod
  # abline(v = bw.ucv(x = X), col = 3)
 ```
-       
+ <div style="page-break-after: always;"></div>      
 #### Résumé des résultats
 
   Méthode      | valeur de h 
@@ -1034,7 +1029,7 @@ lines(xGrid, mNW(x = xGrid, X = log(Xo), Y = Yo, h = ln_hCV), col = "blue")
 
 legend("top", legend = c("Nadaraya-Watson h Dpill = 0.649558","Nadaraya-Watson h (CV) = 0.4046381"), lwd = 2, col = c("red","blue"))
 ```
-
+<div style="page-break-after: always;"></div>
 #### Estimation de la régression de Log(X) avec par polynômes locaux
 
 ```{r echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
@@ -1353,7 +1348,7 @@ p-value faible rejetté
 #### 3.1.5. homoscedasticité du modèle
 (Facultatif.) Comment peut-on tester si le modele est bien homoscedastique ?
   
-  
+<div style="page-break-after: always;"></div>  
   
 ### 3.2 A partir du jeu de donnees Data2
   
