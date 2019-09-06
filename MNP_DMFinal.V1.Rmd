@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # pdf_document: default
 
 
-```{r eval=FALSE}
+```{r eval=FALSE, message=FALSE, warning=FALSE}
 
 #for manipulate data (transform to dataframe)
 install.packages("tidyverse")
@@ -33,7 +33,7 @@ install.packages("stats")
 install.packages("ggplot2")
 ```
 
-```{r r_utile, echo=FALSE}
+```{r r_utile, echo=FALSE, message=FALSE, warning=FALSE}
 
 #rm(list=ls())
 
@@ -235,6 +235,40 @@ NW_hlocal=function(X,Y,grid){
   return(list("y"=Ye,"x"=grid,"h_loc"=h_loc))
 }
 
+# ref https://www.aspexit.com/comment-valider-un-modele-de-prediction/
+
+# Le coefficient de determination : R2
+R2<-function(Estim,Y)
+{
+  n<-length(Y)
+  nm<-mean((Y-Estim$y)**2)
+  dn<-mean((Y-mean(Y))**2)
+  R2<-1- (nm/dn)
+  return(R2)
+}
+
+# Le Biais
+Biais<-function(Estim,Y)
+{
+  Biais <-mean(Estim$y-Y)
+  return(Biais)
+}
+
+# L’erreur moyenne absolue : MAE
+MAE<-function(Estim,Y)
+{
+  MAE <- mean(abs(Estim$y-Y))
+  return(MAE)
+}
+
+# L’erreur quadratique moyenne : RMSE
+RMSE<-function(Estim,Y)
+{
+  RMSE<-sqrt(mean((Estim$y-Y)**2))
+  return(RMSE)
+}
+
+
 ```
 
 
@@ -298,7 +332,7 @@ On prend comme noyau le noyau normal.
 Ce choix peut sembler arbitraire, mais on a vu que ce n'est pas le choix du noyau qui est le plus important dans l'estimation de la densité.
 On calcul cette estimateur de la densité pour différentes largeur de fenêtre: h (bandwidth)
 Et on va déterminer de manière empirique une valeur de h qui semble adapté.
-
+  
 
 ```{r echo=FALSE}
 # on utilise bkde Compute a Binned Kernel Density Estimate de ‘KernSmooth’
@@ -308,55 +342,107 @@ Et on va déterminer de manière empirique une valeur de h qui semble adapté.
   
   res001 <- bkde(x=X, bandwidth=0.01,gridsize = size,  kernel = "normal",canonical=FALSE, truncate = TRUE)         
   err001 <- mean((res001$y-X)**2)
-
+  r2_001  <- R2(res001,X)
+  b_001   <- Biais(res001,X)
+  mae_001 <- MAE(res001,X) 
+  rmse_001<- RMSE(res001,X)
+    
   res003 <- bkde(x=X,bandwidth=0.03,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
   err003=mean((res003$y-X)**2)
+  r2_003  <- R2(res003,X)
+  b_003   <- Biais(res003,X)
+  mae_003 <- MAE(res003,X) 
+  rmse_003<- RMSE(res003,X)
   
-  res005 <- bkde(x=X,bandwidth=0.05,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err005=mean((res005$y-X)**2)
+  res005  <- bkde(x=X,bandwidth=0.05,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err005  <- mean((res005$y-X)**2)
+  r2_005  <- R2(res005,X)
+  b_005   <- Biais(res005,X)
+  mae_005 <- MAE(res005,X) 
+  rmse_005<- RMSE(res005,X)
   
-  res008 <- bkde(x=X,bandwidth=0.08,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err008=mean((res008$y-X)**2)
+  res008  <- bkde(x=X,bandwidth=0.08,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err008  <- mean((res008$y-X)**2)
+  r2_008  <- R2(res008,X)
+  b_008   <- Biais(res008,X)
+  mae_008 <- MAE(res008,X) 
+  rmse_008<- RMSE(res008,X)
   
-  res012 <- bkde(x=X,bandwidth=0.12,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err012=mean((res012$y-X)**2)
-
-  res015 <- bkde(x=X, bandwidth=0.15,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err015=mean((res015$y-X)**2)
+  res012  <- bkde(x=X,bandwidth=0.12,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err012  <- mean((res012$y-X)**2)
+  r2_012  <- R2(res012,X)
+  b_012   <- Biais(res012,X)
+  mae_012 <- MAE(res012,X) 
+  rmse_012<- RMSE(res012,X)
+  
+  res015  <- bkde(x=X, bandwidth=0.15,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err015  <- mean((res015$y-X)**2)
+  r2_015  <- R2(res015,X)
+  b_015   <- Biais(res015,X)
+  mae_015 <- MAE(res015,X) 
+  rmse_015<- RMSE(res015,X)
   
   res020 <- bkde(x=X, bandwidth=0.2,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err020=mean((res020$y-X)**2)
+  err020 <- mean((res020$y-X)**2)
+  r2_020  <- R2(res020,X)
+  b_020   <- Biais(res020,X)
+  mae_020 <- MAE(res020,X) 
+  rmse_020<- RMSE(res020,X)
   
   res024 <- bkde(x=X, bandwidth=0.24,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err024=mean((res024$y-X)**2)
-
+  err024<-mean((res024$y-X)**2)
+  r2_024  <- R2(res024,X)
+  b_024   <- Biais(res024,X)
+  mae_024 <- MAE(res024,X) 
+  rmse024<- RMSE(res024,X)
+  
   res030 <- bkde(x=X, bandwidth=0.3,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err030=mean((res030$y-X)**2)
+  err030<-mean((res030$y-X)**2)
+  r2_030  <- R2(res030,X)
+  b_030   <- Biais(res030,X)
+  mae_030 <- MAE(res030,X) 
+  rmse_030<- RMSE(res030,X)
   
   res040 <- bkde(x=X, bandwidth=0.4,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err040=mean((res040$y-X)**2)
+  err040 <- mean((res040$y-X)**2)
+  r2_040 <- R2(res040,X)
+  b_040  <- Biais(res040,X)
+  mae_040<- MAE(res040,X) 
+  rmse_040<-RMSE(res040,X)
   
-  res050 <- bkde(x=X, bandwidth=0.5,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err050 <- mean((res050$y-X)**2)
+  res050  <- bkde(x=X, bandwidth=0.5,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err050  <- mean((res050$y-X)**2)
+  r2_050  <- R2(res050,X)
+  b_050   <- Biais(res050,X)
+  mae_050 <- MAE(res050,X) 
+  rmse_050<- RMSE(res050,X)
   
-  res070 <- bkde(x=X, bandwidth=0.7,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err070 <- mean((res070$y-X)**2)
+  res070  <- bkde(x=X, bandwidth=0.7, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err070  <- mean((res070$y-X)**2)
+  r2_070  <- R2(res070,X)
+  b_070   <- Biais(res070,X)
+  mae_070 <- MAE(res070,X) 
+  rmse_070<- RMSE(res070,X)
   
-  res100 <- bkde(x=X, bandwidth=1,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err100=mean((res100$y-X)**2)
-
+  res100  <- bkde(x=X, bandwidth=1, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err100  <-mean((res100$y-X)**2)
+  r2_100  <- R2(res100,X)
+  b_100   <- Biais(res100,X)
+  mae_100 <- MAE(res100,X) 
+  rmse_100<- RMSE(res100,X)
+  
 ```
 
-#### Petites valeurs de la fenêtre  h: 0.01 / 0.05
+#### Petites valeurs de la fenêtre  h: 0.01 / 0.03 / 0.05
 
-bandwidth h | error quadratic
------------ | ---------------
-0.01        | `r err001 `
-0.03        | `r err003 `
-0.05        | `r err005 `
+bandwidth h | error quadratic |     R2     |   Biais   |     MAE    |      RMSE    |
+----------- | --------------- | ---------- | --------- | ---------- | ------------ | 
+0.01        | `r err001 `     |`r r2_001 ` |`r b_001 ` |`r mae_001 `| `r rmse_001 `|
+0.03        | `r err003 `     |`r r2_003 ` |`r b_003 ` |`r mae_003 `| `r rmse_003 `|
+0.05        | `r err005 `     |`r r2_005 ` |`r b_005 ` |`r mae_005 `| `r rmse_005 `|
 
 ```{r plot00_d1, echo=FALSE, fig.height=12, fig.width=8, warning=FALSE}
-par(mfrow=c(3,1))
+par(mfrow=c(4,1))
 xlim <- c(-0.2,6)
 ylim <- c(0,2)
 
@@ -365,32 +451,32 @@ rug(X)
 
 plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.01")
 lines(res001$x,res001$y,type="l",col="red")
-legend(3,1.2,c("h=0.01"),col=c("red"),lty=1:1)
+legend(5,1.5,c("h=0.01"),col=c("red"),lty=1:1)
 
-# hist(X, breaks=Bk,freq = FALSE, main ="Histogramme et estimation par noyaux pour h=0.03", xlab="X", ylab="Y" )
-# rug(X)
-# lines(res003$x,res003$y,type="l",col="blue")
-# legend(6,1.2,c("h=0.03"),col=c("blue"),lty=1:1)
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.01")
+lines(res003$x,res003$y,type="l",col="green")
+legend(5,1.5,c("h=0.03"),col=c("green"),lty=1:1)
 
 plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.05")
-rug(X)
+#rug(X)
 lines(res005$x,res005$y,type="l",col="blue")
-legend(3,1.2,c("h=0.05"),col=c("blue"),lty=1:1)
+legend(5,1.5,c("h=0.05"),col=c("blue"),lty=1:1)
 
 ```
 
 On remarque de fortes oscilations pour des h entre 0.01 et 0.05.
+
 <div style="page-break-after: always;"></div>
 
-#### h: 0.08 à 1
+#### Estimateurs pour h variant de 0.08 à 1
 
-bandwidth h | error quadratic
------------ | ---------------
-0.08        |  `r err008 `
-0.2         |  `r err020 `
-0.4         |  `r err040 `
-0.7         |  `r err070 `
-1           |  `r err100 `
+bandwidth h | error quadratic |     R2     |   Biais   |     MAE    |      RMSE    |
+----------- | --------------- | ---------- | --------- | ---------- | ------------ | 
+0.08        | `r err008 `     |`r r2_008 ` |`r b_008 ` |`r mae_008 `| `r rmse_008 `|
+0.20        | `r err020 `     |`r r2_020 ` |`r b_020 ` |`r mae_020 `| `r rmse_020 `|
+0.40        | `r err040 `     |`r r2_040 ` |`r b_040 ` |`r mae_040 `| `r rmse_040 `|
+0.70        | `r err070 `     |`r r2_070 ` |`r b_070 ` |`r mae_070 `| `r rmse_070 `|
+1           | `r err100 `     |`r r2_100 ` |`r b_100 ` |`r mae_100 `| `r rmse_100 `|
 
 
 ```{r plot033_d1, echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
@@ -409,8 +495,8 @@ bandwidth h | error quadratic
   lines(res070$x,res070$y,type="l",col=4, lty=8)
   lines(res100$x,res100$y,type="l",col=5, lty=9)
   
-  legend(3,1.2,c("h=0.03","h=0.08","h=0.2", "h=0.3","h=0.4","h=0.7", "h=1"),
-         col=c("gold", "brown4","coral1",2,3,4,5),
+  legend(3,0.5,c("h=0.08","h=0.2", "h=0.3","h=0.4","h=0.7", "h=1"),
+         col=c( "brown4","coral1",2,3,4,5),
          lty=c(1,2,5,6,8,9))
 ```
 
@@ -426,48 +512,72 @@ Par la suite on va utiliser d'autres critères pour définir un h optimal.
 
 <div style="page-break-after: always;"></div>
 
-#### Raffinement pour h: 0.4 - 0.5
+#### Raffinement pour h entre 0.025 et 0.035
 ```{r include=FALSE, warning=FALSE}
-  res42 <- bkde(x=X, bandwidth=0.42, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err42 <- mean((res42$y-X)**2)
+  res025 <- bkde(x=X, bandwidth=0.025, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err025 <- mean((res025$y-X)**2)
+  r2_025 <- R2(res025,X)
+  b_025  <- Biais(res025,X)
+  mae_025<- MAE(res025,X) 
+  rmse_025<-RMSE(res025,X)
   
-  res43 <- bkde(x=X, bandwidth=0.43, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err43 <- mean((res43$y-X)**2)
+  res027 <- bkde(x=X, bandwidth=0.027, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err027 <- mean((res027$y-X)**2)
+  r2_027 <- R2(res027,X)
+  b_027  <- Biais(res027,X)
+  mae_027<- MAE(res027,X) 
+  rmse_027<-RMSE(res027,X)
   
-  res44 <- bkde(x=X,bandwidth=0.44, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err44 <- mean((res44$y-X)**2)
+  res033 <- bkde(x=X,bandwidth=0.033, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err033 <- mean((res033$y-X)**2)
+  r2_033 <- R2(res033,X)
+  b_033  <- Biais(res033,X)
+  mae_033<- MAE(res033,X) 
+  rmse_033<-RMSE(res033,X)
   
-  res45 <- bkde(x=X,bandwidth=0.45, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
-  err45 <- mean((res45$y-X)**2)
+  res035 <- bkde(x=X,bandwidth=0.035, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err035 <- mean((res035$y-X)**2)
+  r2_035 <- R2(res035,X)
+  b_035  <- Biais(res035,X)
+  mae_035<- MAE(res035,X) 
+  rmse_035<-RMSE(res035,X)
 ```
 
+bandwidth h | error quadratic |     R2     |   Biais   |     MAE    |      RMSE    |
+----------- | --------------- | ---------- | --------- | ---------- | ------------ | 
+0.01        | `r err001 `     |`r r2_001 ` |`r b_001 ` |`r mae_001 `| `r rmse_001 `|
+0.025       | `r err025 `     |`r r2_025 ` |`r b_025 ` |`r mae_025 `| `r rmse_025 `|
+0.027       | `r err027 `     |`r r2_027 ` |`r b_027 ` |`r mae_027 `| `r rmse_027 `|
+0.03        | `r err003 `     |`r r2_003 ` |`r b_003 ` |`r mae_003 `| `r rmse_003 `|
+0.033       | `r err033 `     |`r r2_033 ` |`r b_033 ` |`r mae_033 `| `r rmse_033 `|
+0.035       | `r err035 `     |`r r2_035 ` |`r b_035 ` |`r mae_035 `| `r rmse_035 `|
 
-bandwidth h | error quadratic
------------ | ---------------
-0.4         |  `r err040 `
-0.42        |  `r err42 `
-0.43        |  `r err43 `
-0.44        |  `r err44 `
-0.45        |  `r err45 `
-0.5         |  `r err050 `
+```{r, echo=FALSE, fig.height=12, fig.width=8, warning=FALSE}
+par(mfrow=c(4,1))
+xlim <- c(-0.2,6)
+ylim <- c(0,2)
 
-```{r plot03_d1, echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
-  #hist(X, breaks=bins,freq = FALSE )
-  plot(res040$x,res040$y,type="l",col=1, 
-       main ="Estimation de la densité par noyaux pour différents h entre: 0.4 et 0.5", xlab="X", ylab="Y", xlim=c(-1,5) )
-  rug(X)
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.025")
+lines(res025$x,res025$y,type="l",col="black")
+legend(5,1.5,c("h=0.025"),col=c("black"),lty=1:1)
 
-  lines(res050$x,res050$y,type="l",col=6)
-  lines(res42$x,res42$y,type="l",col=2)
-  lines(res43$x,res43$y,type="l",col=3)
-  lines(res44$x,res44$y,type="l",col=4)
-  lines(res45$x,res45$y,type="l",col=5)
-  
-  legend(3,0.3,c("h=0.4", "h=0.42", "h=0.43", "h=0.44", "h=0.45", "h=0.5"),col=1:6,lty=1:1)
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.027")
+lines(res027$x,res027$y,type="l",col="red")
+legend(5,1.5,c("h=0.027"),col=c("red"),lty=1:1)
+
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.03")
+lines(res003$x,res003$y,type="l",col="green")
+legend(5,1.5,c("h=0.03"),col=c("green"),lty=1:1)
+
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.033")
+#rug(X)
+lines(res033$x,res033$y,type="l",col="blue")
+legend(5,1.5,c("h=0.033"),col=c("blue"),lty=1:1)
+
 ```
 
-Les estimations de la tensité g(x) de X pour des valeurs de h comprise entre 0.4 et 0.5 sont très proches.
-A ce niveau il est difficile de déterminer empiriquement le h optimal.
+<div style="page-break-after: always;"></div>
+
 
 ### 1.2 Détermination d'un h optimal
 Représentation graphique de l'estimation par noyau de la densité ed X: g(x), où h.n est la fenêtre donnee par validation croisee ou par une autre methode que l'on precisera.
@@ -513,6 +623,7 @@ On obtient le même résultat avec la fonction:   bw.nrd
 
 ```
 
+<div style="page-break-after: always;"></div>
 
 #### 1.2.3 Méthodes alternatives
   
@@ -560,8 +671,8 @@ méthode du package Kersmooth: Select a Bandwidth for Kernel Density Estimation
 La fenêtre h est obtenu par (UCV) de Least Squares Cross-Validation curve (LSCV) et h obtenu (UCV)
  
 ```{r echo=FALSE, fig.height=4, fig.width=8, warning=FALSE}
-  h_ucv <-bw.ucv.mod(x = X, plot.cv = TRUE)
-  h_ucv
+  h_ucv_mod <-bw.ucv.mod(x = X, plot.cv = TRUE)
+  h_ucv_mod
  # abline(v = bw.ucv(x = X), col = 3)
 ```
        
@@ -572,7 +683,7 @@ La fenêtre h est obtenu par (UCV) de Least Squares Cross-Validation curve (LSCV
 bw.ucv         |  `r h_ucv `
 dpik           |  `r h_dpik `
 density        |  0.4294
-ESM            | entre 0.4 et 0.5
+ESM            | autour de 0.027
 Regle Silverman|  `r h_sil `
 
 
@@ -582,26 +693,25 @@ estim_d <- bkde(x=X,bandwidth=0.4294,gridsize=size)
 estim_dpik <- bkde(x=X, kernel = "normal",bandwidth=h_dpik, truncate = TRUE)
 
 xlim <- c(-0.2,6)
-ylim <- c(0,1.3)
+ylim <- c(0,1.5)
 plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour différents h")
-rug(X, side = 1)
+#rug(X, side = 1)
 
 #plot(estim_ucv$x,estim_ucv$y,type="l",col=1, lty=1, main ="Estimation de la densité par noyaux pour différents h", xlab="X", ylab="Y" )
+#rug(X, side = 1)
+lines(res027$x,res027$y,type="l",col=1, lty=1)
+lines(estim_ucv$x,estim_ucv$y,type="l",col=2, lty=1)
+lines(estim_dpik$x,estim_dpik$y,type="l",col=3, lty=2)
+lines(estim_d$x,estim_d$y,type="l",col=4, lty=5)
+lines(estim_sil$x,estim_sil$y,type="l",col=5, lty=9)
 
-rug(X, side = 1)
-lines(estim_ucv$x,estim_ucv$y,type="l",col=1, lty=1)
-lines(estim_dpik$x,estim_dpik$y,type="l",col=2, lty=2)
-lines(estim_d$x,estim_d$y,type="l",col=3, lty=5)
-lines(res040$x,res040$y,type="l",col=4, lty=6)
-lines(res44$x,res44$y,type="l",col=5, lty=8)
-lines(estim_sil$x,estim_sil$y,type="l",col=6, lty=9)
-
-legend(5,0.8,c("h=Silverman", "bw.ucv", "dpik","density", "h=0.4","h=0.45"),
-         col=c(1,2,3,4,5,6),
-         lty=c(1,2,5,6,8,9))
+legend(4,1.2,c("h = 0.027","bw.ucv = 0.056","dpik = 0.144", "density = 0.429", "h Silverman = 0.505"),
+         col=c(1,2,3,4,5),
+         lty=c(1,2,5,6,8))
 ```
 
 <div style="page-break-after: always;"></div>
+
 ### 1.3 QQPlot - g(x) densité Uniforme ?
        
 Implementation d'un QQ-plot pour vérifier empiriquement l'hypothese g(x) suit (ou pas) une densité Uniforme U=1/10 sur [0,10]
@@ -611,8 +721,6 @@ Implementation d'un QQ-plot pour vérifier empiriquement l'hypothese g(x) suit (
   qqplot(runif(200, min=0, max=10), X,
          main = expression("Q-Q plot pour la loi" ~~ {Uniforme}[U == 1/10]))
   qqline(X,datax=TRUE,col="red")
-  
-  #qplot(sample = runif(200, min=0, max=10), data = XFrame)
   
 ```
 
@@ -750,6 +858,22 @@ lines(ksmooth, col = 2)
 lines(ksmoothCV, col = "blue")
 
 legend("top", legend = c("Nadaraya-Watson h Dpill = 0.2186849","Nadaraya-Watson h (CV) = 0.1200601"), lwd = 2, col = c(2,"blue"))
+```
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+# Bandwidth
+h <- hDpill
+#hCV<-0.1200601
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+
+ksmooth <- ksmooth(Xo, Yo, "normal", bandwidth = h)
+ksmoothCV <- ksmooth(Xo, Yo, "normal", bandwidth = hCV)
+
+
 ```
 
 L'estimateur est sensible au choix de h.
@@ -1443,6 +1567,65 @@ p-value faible rejetté
 
 ```
   
+<div style="page-break-after: always;"></div>
+
+#### Raffinement pour h: 0.4 - 0.5
+```{r include=FALSE, warning=FALSE}
+  res042 <- bkde(x=X, bandwidth=0.42, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err042 <- mean((res042$y-X)**2)
+  r2_042 <- R2(res042,X)
+  b_042  <- Biais(res042,X)
+  mae_042<- MAE(res042,X) 
+  rmse_042<-RMSE(res042,X)
+  
+  res043 <- bkde(x=X, bandwidth=0.43, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err043 <- mean((res043$y-X)**2)
+  r2_043 <- R2(res043,X)
+  b_043  <- Biais(res043,X)
+  mae_043<- MAE(res043,X) 
+  rmse_043<-RMSE(res043,X)
+  
+  res044 <- bkde(x=X,bandwidth=0.44, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err044 <- mean((res044$y-X)**2)
+  r2_044 <- R2(res044,X)
+  b_044  <- Biais(res044,X)
+  mae_044<- MAE(res044,X) 
+  rmse_044<-RMSE(res044,X)
+  
+  res045 <- bkde(x=X,bandwidth=0.45, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err045 <- mean((res045$y-X)**2)
+  r2_045 <- R2(res045,X)
+  b_045  <- Biais(res045,X)
+  mae_045<- MAE(res045,X) 
+  rmse_045<-RMSE(res045,X)
+```
+
+bandwidth h | error quadratic |     R2     |   Biais   |     MAE    |      RMSE    |
+----------- | --------------- | ---------- | --------- | ---------- | ------------ | 
+0.40        | `r err040 `     |`r r2_040 ` |`r b_040 ` |`r mae_040 `| `r rmse_040 `|
+0.42        | `r err042 `     |`r r2_042 ` |`r b_042 ` |`r mae_042 `| `r rmse_042 `|
+0.43        | `r err043 `     |`r r2_043 ` |`r b_043 ` |`r mae_043 `| `r rmse_043 `|
+0.44        | `r err044 `     |`r r2_044 ` |`r b_044 ` |`r mae_044 `| `r rmse_044 `|
+0.45        | `r err045 `     |`r r2_045 ` |`r b_045 ` |`r mae_045 `| `r rmse_044 `|
+0.50        | `r err050 `     |`r r2_050 ` |`r b_050 ` |`r mae_050 `| `r rmse_050 `|
+
+```{r plot03_d1, echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
+  #hist(X, breaks=bins,freq = FALSE )
+  plot(res040$x,res040$y,type="l",col=1, 
+       main ="Estimation de la densité par noyaux pour différents h entre: 0.4 et 0.5", xlab="X", ylab="Y", xlim=c(-1,5) )
+  rug(X)
+
+  lines(res050$x,res050$y,type="l",col=6)
+  lines(res042$x,res042$y,type="l",col=2)
+  lines(res043$x,res043$y,type="l",col=3)
+  lines(res044$x,res044$y,type="l",col=4)
+  lines(res045$x,res045$y,type="l",col=5)
+  
+  legend(3,0.3,c("h=0.4", "h=0.42", "h=0.43", "h=0.44", "h=0.45", "h=0.5"),col=1:6,lty=1:1)
+```
+
+Les estimations de la tensité g(x) de X pour des valeurs de h comprise entre 0.4 et 0.5 sont très proches.
+A ce niveau il est difficile de déterminer empiriquement le h optimal.
 
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
