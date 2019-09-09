@@ -1,0 +1,1648 @@
+
+---
+title: 'Régression non-paramétrique'
+author: "Philippe Real"
+date: "19/09/2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#rmarkdown::render("MNP_DMFinal.Rmd")
+# html_document: default
+# pdf_document: default
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+
+#for manipulate data (transform to dataframe)
+install.packages("tidyverse")
+install.packages("tibble")
+install.packages("sm")
+
+install.packages("KernSmooth")
+install.packages("np")
+install.packages("stats")
+install.packages("ggplot2")
+install.packages("kedd")
+```
+
+```{r r_utile, echo=FALSE, message=FALSE, warning=FALSE}
+
+#rm(list=ls())
+
+#chargement des librairies utilses
+library(tibble)
+library(ggplot2)
+library(KernSmooth)
+library(stats)
+library(np)
+library(kedd)
+
+require(graphics)
+
+# on reprend ici les codes des fonction utiles vues en cours.
+
+
+
+# bw.ucv.mod replaces the optimization routine of bw.ucv by an exhaustive
+# search on "h.grid" (chosen adaptatively from the sample) and optionally
+# plots the LSCV curve with "plot.cv"
+bw.ucv.mod <- function(x, nb = 1000L,
+                       h.grid = diff(range(x)) * (seq(0.1, 1, l = 200))^2,
+                       plot.cv = FALSE) {
+  if ((n <- length(x)) < 2L)
+    stop("need at least 2 data points")
+  n <- as.integer(n)
+  if (is.na(n))
+    stop("invalid length(x)")
+  if (!is.numeric(x))
+    stop("invalid 'x'")
+  nb <- as.integer(nb)
+  if (is.na(nb) || nb <= 0L)
+    stop("invalid 'nb'")
+  storage.mode(x) <- "double"
+  hmax <- 1.144 * sqrt(var(x)) * n^(-1/5)
+  Z <- .Call(stats:::C_bw_den, nb, x)
+  d <- Z[[1L]]
+  cnt <- Z[[2L]]
+  fucv <- function(h) .Call(stats:::C_bw_ucv, n, d, cnt, h)
+  ## Original
+  # h <- optimize(fucv, c(lower, upper), tol = tol)$minimum
+  # if (h < lower + tol | h > upper - tol)
+  #   warning("minimum occurred at one end of the range")
+  ## Modification
+  obj <- sapply(h.grid, function(h) fucv(h))
+  h <- h.grid[which.min(obj)]
+  if (plot.cv) {
+    plot(h.grid, obj, type = "o",  main="Least Squares Cross-Validation curve (LSCV) et h obtenu (UCV)" )
+    rug(h.grid)
+    abline(v = h, col = 2, lwd = 2)
+  }
+  h
+}
+
+########################
+# En regression
+########################
+# Pas de fonction qui fait de la validation croisee? Fonction dpill.
+
+# VALIDATION CROISEE (leave one out) du cours avec la fonction ksmooth pacgkage stat
+# Attention cette fonction est lente si n est trop grand, il faut sous sampler
+# (Voir aussi package sm, function hcv)
+
+# Cette fonction renvoie pour tout (h in grid) la valeur du risque empirique associé.
+# Le h optimal à considérer est le h qui minimise la sortie de CVbwt
+CVbwt=function(grid,X,Y){
+  JJ=function(h){
+    fhati=Vectorize(function(i) ksmooth(X[-i],Y[-i],kernel="normal",bandwidth=h,x.points=X[i])$y)
+    Forecast=fhati(1:length(X))
+    return(mean((Y-Forecast)**2))     
+    print(paste0("nombre NaN Forecast : ", length(-which(is.na(Forecast)))))  
+  }
+  vy=Vectorize(JJ)(grid)
+  
+  return(vy)
+  
+}
+
+# Seconde methode
+mNW <- function(x, X, Y, h, K = dnorm) {
+  
+  # Arguments
+  # x: evaluation points
+  # X: vector (size n) with the predictors
+  # Y: vector (size n) with the response variable
+  # h: bandwidth
+  # K: kernel
+  
+  # Matrix of size n x length(x)
+  Kx <- sapply(X, function(Xi) K((x - Xi) / h) / h)
+  
+  # Weights
+  W <- Kx / rowSums(Kx) # Column recycling!
+  
+  # Means at x ("drop" to drop the matrix attributes)
+  drop(W %*% Y)
+  
+}
+
+# Objective function
+cvNW <- function(X, Y, h, K = dnorm) {
+  
+  sum(((Y - mNW(x = X, X = X, Y = Y, h = h, K = K)) /
+         (1 - K(0) / colSums(K(outer(X, X, "-") / h))))^2)
+  # Beware: outer() is not very memory-friendly!
+  
+}
+
+# Find optimum CV bandwidth, with sensible grid
+bw.cv.grid <- function(X, Y,
+                       h.grid = diff(range(X)) * (seq(0.1, 1, l = 200))^2,
+                       K = dnorm, plot.cv = FALSE) {
+  
+  obj <- sapply(h.grid, function(h) cvNW(X = X, Y = Y, h = h, K = K))
+  h <- h.grid[which.min(obj)]
+  if (plot.cv) {
+    plot(h.grid, obj, type = "o")
+    rug(h.grid)
+    abline(v = h, col = 2, lwd = 2)
+  }
+  h
+  
+}
+
+########################
+# Fonction de demo qui trace sur un meme graphe différents estimateurs
+# issus de différents polynomes locaux et différents paramètres de lissage adaptatifs 
+#(fonction dpill de R, h de Silverman, validation croisée)
+demoKSR=function(X,Y){  
+  n=length(X) 
+  std=sqrt(var(X))
+  h_gridCV=exp(seq(log(std/4),log(std),length=10))# initialisation de grid pour CVbwt
+  
+  
+  h_dpill=dpill(X,Y)# adapte a du bruit Gaussien
+  h_silver=1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densité
+  
+  CVerr=CVbwt(h_gridCV,X,Y)
+  h_CVopt=h_gridCV[which.min(CVerr)]
+  #hCVb <- bw.cv.grid(X = X, Y = Y)
+  #print(paste0("h_pill : ",h_dpill," h_silver : ", h_silver," h_CV1 ; ",h_CVopt," h_CV2 ; ",hCVb))
+  
+  
+  Y_pill=locpoly(X,Y,drv=0,degree=2,kernel="normal",bandwidth=h_dpill)
+  # Y_CVb=locpoly(X,Y,drv=0,degree=2,kernel="normal",bandwidth=hCVb)
+  Y_silver=locpoly(X,Y,drv=0,degree=2,kernel="normal",bandwidth=h_silver)
+  Y_CV=locpoly(X,Y,drv=0,degree=2,kernel="normal",bandwidth=h_CVopt)
+  
+  plot(X,Y,pch=20,cex=0.01,xlab="X",ylab="Y")
+  lines(Y_pill$x,r(Y_pill$x),col="red")  
+  #lines(Y_CVb,lty="dashed",col="darkgoldenrod")
+  lines(Y_pill,lty="dashed",col="green")
+  lines(Y_silver,lty="dashed",col="blue")
+  lines(Y_CV$x,Y_CV$y,type="l",col="aquamarine")
+  #legend("bottomright",legend=c("True","pill","CV1","Silver","CV2"),
+  #   col=c("red","green","darkgoldenrod","darkgoldenrod","blue","aquamarine"), lty=1:2, cex=0.8)
+  
+}  
+
+
+########################
+# Fonction recodée de l'estimateur de NW du cours évalué au point x0
+est_NW=function(x0,X,Y,h){
+  Kh=function(y){1/h*dnorm(y,0,1)}
+  NW=mean(Kh(x0-X)*Y)/mean(Kh(x0-X))
+  return(NW)
+}
+
+
+########################
+# Fonction qui calcule des h adaptatifs avec la fonction dpill dépendant "localement" des valeurs de X
+# Faire du hlocal: très utile en pratique
+# Critique de cette fonction: on sous sample pour calculer h et l'estimateur
+# Les performances sont un peu décevantes (du au fait qu'on ait un nombre constant d'observations par bloc?)
+# Alternative à tester on partitionne l'axe de x et on fait des blocs en gardant à chaque fois les 
+# X_i qui tombent dans chaque block
+h_CVloc=function(X,Y,N_block){
+  #N_block multiple de n
+  n=length(X)
+  h_loc=rep(-1,N_block)
+  if((n/N_block)%%1!=0){ print("error n should be a multiple of N_block")}
+  X_sort=sort(X)
+  Y_sort=Y[order(X)]
+  for(i in 1:N_block){
+    h_loc[i]=dpill(X_sort[((i-1)*(n/N_block)+1):(i*(n/N_block))],Y_sort[((i-1)*(n/N_block)+1):(i*(n/N_block))])
+  }
+  h_locG=rep(h_loc,each=400/N_block)
+  return(list("h_loc"=h_loc,"h_locG"=h_locG))
+}
+
+# Fonction qui permet de calculer l'estimateur de Nadarya Watwon aux points de grid
+NW_hlocal=function(X,Y,grid){
+  M=length(grid)
+  Ye=rep(0,M)
+  h_loc=rep(0,M)
+  for(m in 1:M){
+    h_loc[m]=(length(X)/sum(1/((grid[m]-X)**2)))
+    #print(h_loc[m])
+    Ye[m]=ksmooth(X,Y,kernel="normal",bandwidth=h_loc[m],x.points=grid[m])$y      
+  }
+  return(list("y"=Ye,"x"=grid,"h_loc"=h_loc))
+}
+
+# ref https://www.aspexit.com/comment-valider-un-modele-de-prediction/
+
+# Le coefficient de determination : R2
+R2<-function(Estim,Y)
+{
+  n<-length(Y)
+  nm<-mean((Y-Estim$y)**2)
+  dn<-mean((Y-mean(Y))**2)
+  R2<-1- (nm/dn)
+  return(R2)
+}
+
+# Le Biais
+Biais<-function(Estim,Y)
+{
+  Biais <-mean(Estim$y-Y)
+  return(Biais)
+}
+
+# L’erreur moyenne absolue : MAE
+MAE<-function(Estim,Y)
+{
+  MAE <- mean(abs(Estim$y-Y))
+  return(MAE)
+}
+
+# L’erreur quadratique moyenne : RMSE
+RMSE<-function(Estim,Y)
+{
+  RMSE<-sqrt(mean((Estim$y-Y)**2))
+  return(RMSE)
+}
+
+
+```
+
+
+## 1. Etude de la densitée g des X
+
+### 1.0 Lecture des données et premières analyses
+
+```{r d1_summary}
+d1 = read.csv("Data1.csv")
+summary(d1)
+```
+
+
+```{r r_ini, echo=FALSE}
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+
+X<-d1$X
+Y<-d1$Y1
+
+gridsize <- 200
+
+#Allure de la densité: simple histogram
+gridMax=seq(0,10,length=length(X))# grille oÃ¹ on Ã©value l'estimateur
+grid100=seq(0,10,length=100)# grille oÃ¹ on Ã©value l'estimateur
+grid=seq(0,10,length=200)# grille oÃ¹ on Ã©value l'estimateur
+grid500=seq(-1,10,length=500)# grille oÃ¹ on Ã©value l'estimateur
+
+#histo simple
+#hist(X,probability = T,breaks=grid100)
+
+#transform as dataframe
+XFrame <- enframe(X, name = "X", value = "value")
+
+```
+
+```{r histo_d1, echo=FALSE}
+
+#dpih Select a Histogram Bin Width
+h0 <- dpih(X)
+bins <- seq(min(X)-h0, max(X)+h0, by=h0)
+#hist(X, breaks=bins,freq = FALSE, main ="Histogramme de l'échantillon X de D1", xlab="", ylab="" )
+grid_h0 <- seq(min(X)-h0, max(X)+h0, by=h0)
+
+```
+
+Pour avoir une idée de la densité de X on peut tracer son histogramme.
+```{r echo=FALSE, fig.height=7, fig.width=10}
+Bk <- seq(-0.2,10, by = 0.1)
+hist(X,  breaks = Bk)
+rug(X)
+```
+<div style="page-break-after: always;"></div>
+
+### 1.1 Estimateur non-paramétrique de g(x) 
+
+On peut utiliser la fonction bkde du package KernSmooth qui estime la densité par la méthode des noyaux.
+On prend comme noyau le noyau normal. 
+Ce choix peut sembler arbitraire, mais on a vu que ce n'est pas le choix du noyau qui est le plus important dans l'estimation de la densité.
+On calcul cette estimateur de la densité pour différentes largeur de fenêtre: h (bandwidth)
+Et on va déterminer de manière empirique une valeur de h qui semble adapté.
+  
+
+```{r echo=FALSE}
+# on utilise bkde Compute a Binned Kernel Density Estimate de ‘KernSmooth’
+#et représenter graphiquement g.n,h (x) pour différentes valeurs de h que vous choisirez.
+  size<-500
+  xlim<- c(-0,6)
+  
+  res001  <- bkde(x=X, bandwidth=0.01,gridsize = size,  kernel = "normal",canonical=FALSE, truncate = TRUE)         
+  res003  <- bkde(x=X,bandwidth=0.03,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res005  <- bkde(x=X,bandwidth=0.05,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res008  <- bkde(x=X,bandwidth=0.08,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res010  <- bkde(x=X,bandwidth=0.10,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res012  <- bkde(x=X,bandwidth=0.12,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res015  <- bkde(x=X, bandwidth=0.15,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res020  <- bkde(x=X, bandwidth=0.2,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res024  <- bkde(x=X, bandwidth=0.24,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res030  <- bkde(x=X, bandwidth=0.3,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res040  <- bkde(x=X, bandwidth=0.4,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res050  <- bkde(x=X, bandwidth=0.5,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res070  <- bkde(x=X, bandwidth=0.7, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  res100  <- bkde(x=X, bandwidth=1, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+```
+
+#### Graphique pour de petites valeurs de la fenêtre  h: 0.01 / 0.03 / 0.05
+
+```{r plot00_d1, echo=FALSE, fig.height=12, fig.width=8, warning=FALSE}
+par(mfrow=c(4,1))
+xlim <- c(-0.2,6)
+ylim <- c(0,2)
+
+hist(X, breaks=Bk,freq = FALSE, main ="Histogramme", xlab="X", ylab="Y",xlim = xlim, ylim = ylim)
+rug(X)
+
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.01")
+lines(res001$x,res001$y,type="l",col="red")
+legend(5,1.5,c("h=0.01"),col=c("red"),lty=1:1)
+
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.01")
+lines(res003$x,res003$y,type="l",col="green")
+legend(5,1.5,c("h=0.03"),col=c("green"),lty=1:1)
+
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour h=0.05")
+#rug(X)
+lines(res005$x,res005$y,type="l",col="blue")
+legend(5,1.5,c("h=0.05"),col=c("blue"),lty=1:1)
+
+```
+
+On remarque de fortes oscilations pour des h entre 0.01 et 0.05.
+
+<div style="page-break-after: always;"></div>
+
+#### Estimateurs pour h variant de 0.08 à 1
+
+```{r plot033_d1, echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
+
+  #hist(X, breaks=bins,freq = FALSE )
+
+  plot(res008$x,res008$y,type="l",col="brown4", lty=1, 
+       main ="Estimation de la densité par noyaux pour différents h", xlab="X", ylab="Y" , xlim=c(-0.25,6))
+  rug(X)
+
+  lines(res010$x,res010$y,type="l",col="gold",lty=2)
+  lines(res020$x,res020$y,type="l",col="coral1", lty=5)
+  lines(res030$x,res030$y,type="l",col=2, lty=5)
+  lines(res040$x,res040$y,type="l",col=3, lty=6)
+  #lines(res8$x,res8$y,type="l",col=3, lty=7)
+  lines(res070$x,res070$y,type="l",col=4, lty=8)
+  lines(res100$x,res100$y,type="l",col=5, lty=9)
+  
+  legend(4,0.6,c("h=0.08", "h=0.1","h=0.2", "h=0.3","h=0.4","h=0.7", "h=1"),
+         col=c( "brown4","gold", "coral1",2,3,4,5),
+         lty=c(1,2,5,6,8,9))
+```
+
+A partir de h = 0.2 l'approximation est plus régulière.
+
+#### Raison pour laquelle ce choix est important et ce qui se produit si h est mal choisi
+- Si h est trop grand (courbes bleues) noyau trop régularisant : trop de biais
+- Si h est trop petit (courbes marron du graphique ci-dessus) : trop oscillant, trop de variance.
+
+
+<div style="page-break-after: always;"></div>
+
+
+### 1.2 Détermination d'un h optimal
+Représentation graphique de l'estimation par noyau de la densité ed X: g(x), où h.n est la fenêtre donnee par validation croisee ou par une autre methode que l'on precisera.
+  
+#### 1.2.1 Validation croisée pour la densité, 
+
+##### Utilisation de la fonction bw.ucv library stats
+  
+```{r warning=FALSE}
+  h_ucv<-bw.ucv(X)
+  h_ucv
+```
+  
+#### 1.2.2 Règle Silverman
+En appliquant la règle de Silverman, on obtient le h suivant:
+```{r }
+n<-length(X)
+h_sil<-1.06*sqrt(var(X))*n**(-1/5)
+h_sil
+```
+
+On obtient le même résultat avec la fonction:   bw.nrd
+
+##### Fonction bw.nrd 
+
+```{r }
+  h_nrd <- bw.nrd(x = X)
+  h_nrd
+```  
+
+
+```{r fig.height=5, fig.width=8, echo=FALSE}
+  estim_ucv<-bkde(X, kernel = "normal", bandwidth=h_ucv, truncate = TRUE)
+  estim_sil<-bkde(X, kernel = "normal", bandwidth=h_sil, truncate = TRUE)
+  
+  plot(estim_ucv$x,estim_ucv$y,type="l",col="blue",  
+       main ="Densité par noyaux pour h obtenues par bw.ucv et la règle de Silverman.", xlab="X", ylab="Y")
+ 
+  lines(estim_sil$x,estim_sil$y,type="l",col="red")
+  #lines(resH$x,dnorm(resH$x,3,2),type="l",col="blue")
+  #lines(resHH$x,dnorm(resHH$x,3,2),type="l",col="gold")
+  legend(6,0.8,c("bw.ucv => h=0.0567", "Silverman => h=0.5057"),col=c("blue","red"),lty=1:1)
+
+```
+<div style="page-break-after: always;"></div>
+
+#### 1.2.3 Méthodes alternatives
+  
+##### Fonction density
+On peut regrarder le résultat de la fonction density du package RSmooth qui teste différents noyaux 
+et renvoie un h optimal 
+
+```{r d1_desity, echo=FALSE}
+d<-density(X)
+h_density<-d$bw
+h_density
+```
+
+##### Fonction dpik 
+méthode du package Kersmooth: pour la selection d'une fenêtre optimale
+
+```{r, echo=FALSE }
+  h_dpik <- dpik(X)
+  h_dpik
+```
+
+##### Fonction ucv 
+La fenêtre h est obtenu par (UCV) de Least Squares Cross-Validation curve (LSCV) et h obtenu (UCV)
+ 
+```{r echo=FALSE, fig.height=4, fig.width=8, warning=FALSE}
+  h_ucv_mod <-bw.ucv.mod(x = X, plot.cv = TRUE)
+  h_ucv_mod
+ # abline(v = bw.ucv(x = X), col = 3)
+```
+ <div style="page-break-after: always;"></div>      
+#### Résumé des résultats
+
+  Méthode      | valeur de h 
+-------------- | --------------
+bw.ucv         |  `r h_ucv `
+dpik           |  `r h_dpik `
+density        |  `r h_density `
+Regle Silverman|  `r h_sil `
+
+
+```{r echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
+
+estim_d <- bkde(x=X,bandwidth=0.4294,gridsize=size)
+estim_dpik <- bkde(x=X, kernel = "normal",bandwidth=h_dpik, truncate = TRUE)
+
+xlim <- c(-0.2,6)
+ylim <- c(0,1.2)
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de la densité par noyaux pour différents h")
+#rug(X, side = 1)
+#plot(estim_ucv$x,estim_ucv$y,type="l",col=1, lty=1, main ="Estimation de la densité par noyaux pour différents h", xlab="X", ylab="Y" )
+
+lines(estim_ucv$x,estim_ucv$y,type="l",col=1, lty=3)
+lines(estim_dpik$x,estim_dpik$y,type="l",col=2, lty=1)
+lines(estim_d$x,estim_d$y,type="l",col=3, lty=3)
+lines(estim_sil$x,estim_sil$y,type="l",col=4, lty=6)
+
+legend(4,1.2,c("bw.ucv = 0.056","dpik = 0.144", "density = 0.429", "h Silverman = 0.505"),
+         col=c(1,2,3,4),
+         lty=c(2,3,1,6))
+```
+
+<div style="page-break-after: always;"></div>
+
+### 1.3 QQPlot - g(x) densité Uniforme ?
+       
+Implementation d'un QQ-plot pour vérifier empiriquement l'hypothese g(x) suit (ou pas) une densité Uniforme U=1/10 sur [0,10]
+
+```{r plot3_QQ, echo=FALSE}
+
+  qqplot(runif(200, min=0, max=10), X,
+         main = expression("Q-Q plot pour la loi" ~~ {Uniforme}[U == 1/10]))
+  qqline(X,datax=TRUE,col="red")
+  
+```
+
+
+A la vue du graphique QQPlot par rapport à la loi uniforme (U=1/10) l'hypothèse selon laquelle g est uniforme n'est pas raisonnable.
+Cependant entre les valeurs en abscisse [2,6] l'hypothèse semble plus crédible.
+On pourrait diviser l'espace en 3 parties: [0 , 2] [2 , 6] [6 , 10]
+
+
+### 1.4 Zone de l'espace où l'estimation de r sera plus précise
+  
+Plus de précision  où les données ne sont pas trop dispersées et ou la densité est importante.
+Donc plus de précision dans l'intervalle [0+dela , 5]
+La précision diminue à droite...
+Dans un voisinage de 0 l'estimation n'est pas précise non plus: difficulté d'estimer où g(x) = 0   
+
+
+<div style="page-break-after: always;"></div>
+
+## 2. Reconstruction de r(x)
+On est dans le cadre de l'estimation non paramétrique, on reprend les hypothèses classiques
+On utilise les données de Data1, (X,Y)
+
+### 2.1 La fonction r peut elle être linéaire ? 
+  
+On trace Y1 en fonction de X
+Sans transformation, à la vue du graphe, r ne peut être linéaire.
+
+```{r plot211_d1, echo=FALSE}
+  
+  qplot(X,Y) + geom_point(colour="grey60") + stat_smooth(method=loess)+
+    stat_smooth(method=lm, se=FALSE, colour="black")
+```
+
+
+Maintenant On trace Y1 en fonction de log(X)
+
+```{r plot212_d1, echo=FALSE}
+  
+  qplot(log(X),Y) + geom_point(colour="grey60") + stat_smooth(method=loess)+
+    stat_smooth(method=lm, se=FALSE, colour="black")
+  
+```
+
+
+Dans la région [-5,1] où l'on retouve la quasi totalité de l'échantillon, 
+la transfoarmtion (log(x)) a permis de bien linéariser.
+
+
+### 2.2. Construction d'un estimateur non-parametrique de r(x) 
+
+#### Détermination de la fenêtre h
+
+Différentes fenêtres h obtenues à partir de différentes métodes:
+fonction dpill de R, h de Silverman, validation croisée.
+
+```{r include=FALSE,eval=FALSE, echo=FALSE}
+require(KernSmooth)
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+
+#h_grid<-CVbwt(grid,Xo,Yo)
+
+h_dpill<-dpill(X,Y)# adapte a du bruit Gaussien
+h_silver<-1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densitÃ©
+  
+n=length(X) 
+std=sqrt(var(X))
+h_gridCV<-exp(seq(log(std/4),log(std),length=10))# initialisation de grid pour CVbwt
+h_gridCV<-seq(0.1,6,length=200)# grille où on évalue l'estimateur
+  
+CVerr<-CVbwt(h_gridCV,X,Y)
+h_CVopt<-h_gridCV[which.min(CVerr)]
+h_CVb <- bw.cv.grid(X = X, Y = Y)
+print(paste0("h_dpill : ",h_dpill," h_silver : ", h_silver," h_CV1 ; ",h_CVopt," h_CV2 ; ",h_CVb))
+plot(h_gridCV,CVerr,type="l")
+
+```
+
+```{r plot2314_d1, include=FALSE,eval=FALSE, echo=FALSE}
+grid=seq(0.1,5,length=200)# grille où on évalue l'estimateur
+h_grid=CVbwt(grid,X,Y)
+h_CVopt=grid[which.min(h_grid)]
+plot(grid,h_grid,type="l")
+print(paste0(" h_CV1 ; ",h_CVopt))
+
+```  
+
+
+
+#### Test: choix de $h$ local
+
+```{r h_CVloc, echo=FALSE}
+
+h_dpill <- 0.218684860290525 
+h_silver <- 0.505695020156574 
+h_CVopt <- 0.337185929648241 
+h_CVb <- 0.120060113212087
+
+h_CVopt_loc <- h_CVloc(Xo,Yo,10)
+if(length(which(is.na(h_CVopt_loc$h_locG)))==0){h=h_CVopt_loc$h_locG}else{h=h_CVopt_loc$h_locG[-which(is.na(h_CVopt_loc$h_locG))]}
+summary(h)
+```
+
+On remarque que, la valeur médiane 0.036759 est assez proche du résultat trouvé pour le h global à partir de la validation croisée: h_CV1
+
+#### Estimateur de Nadaraya-Watson : avec un h_local
+h_local calculé aux différents points de grid.
+
+```{r plot3312_d1, echo=FALSE, fig.width=10}
+#### Fonction qui permet de calculer l'estimateur de NW aux points de grid
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+
+resNW=NW_hlocal(Xo, Yo, xGrid)
+plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y", main="graphique pour : Estimateur de Nadaraya-Watson et h local")
+lines(resNW$x,resNW$y,col="red")
+```
+
+
+#### Estimateur de Nadaraya-Watson avec la librairie stat - fonction : ksmooth 
+Utilisation de la fonction  NW et différentes fenêtre h_dpill=`r h_dpill `,  h_silver=`r h_silver `, h_CV1=`r h_CVopt `,  h_CV2=`r h_CVb `
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+
+ksmooth_dpill <- ksmooth(Xo, Yo, "normal", bandwidth = h_dpill)
+ksmooth_silver <- ksmooth(Xo, Yo, "normal", bandwidth = h_silver)
+ksmooth_CVopt <- ksmooth(Xo, Yo, "normal", bandwidth = h_CVopt)
+ksmooth_CVb <- ksmooth(Xo, Yo, "normal", bandwidth = h_CVb)
+
+# Plot data
+plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec ksmooth et différents h")
+rug(X, side = 1); rug(Y, side = 2)
+
+lines(ksmooth_dpill, col = "green")
+lines(ksmooth_silver, col = 2)
+lines(ksmooth_CVb, col = "blue") #(CV 2)
+lines(ksmooth_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+                          paste("h Dpill = ", round(h_dpill,5)),
+                         paste("h (CV 1) = ", round(h_CVopt,5)),
+                         paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+L'estimateur est sensible au choix de h.
+L'estimateur de Nadaraya-Watson est très oscillant par construction.
+
+#### Estimateur de Nadaraya-Watson à partir de la fonction recodé NW
+Utilisation de la fonction  NW et différentes fenêtre h_dpill=`r h_dpill `,  h_silver=`r h_silver `, h_CV1=`r h_CVopt `,  h_CV2=`r h_CVb `
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+
+# Plot data
+plot(Xo, Yo,pch=10,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec la fonction mNW et différents h")
+rug(X, side = 1); rug(Y, side = 2)
+
+mNW_dpill <- mNW(x = xGrid, X = Xo, Y = Yo, h = h_dpill)  
+mNW_silver <- mNW(x = xGrid, X = Xo, Y = Yo, h = h_silver) 
+mNW_CVb <- mNW(x = xGrid, X = Xo, Y = Yo, h = h_CVb) 
+mNW_CVopt <- mNW(x = xGrid, X = Xo, Y = Yo, h = h_CVopt)
+
+lines(xGrid,mNW_dpill, col = "green")
+lines(xGrid,mNW_silver, col = 2)
+lines(xGrid,mNW_CVb, col = "blue")
+lines(xGrid,mNW_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+                          paste("h Dpill = ", round(h_dpill,5)),
+                         paste("h (CV 1) = ", round(h_CVopt,5)),
+                         paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+
+```
+#### Estimateur par polynômes locaux 
+Utilisation de la fonction locpoly du package Kersmooth avec différentes fenêtre h_dpill=`r h_dpill `,  h_silver=`r h_silver `, h_CV1=`r h_CVopt `,  h_CV2=`r h_CVb `
+On choisie le degès 2
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+gdsize<-200
+
+locpoly2_dpill <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_dpill, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_silver <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_silver, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_CVb <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_CVb, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_CVopt <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_CVopt, degree = 2, range.x = c(-10, 10), gridsize = gdsize)
+
+# Plot data
+plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Polynômes locaux de degrès 2 avec locpoly et différents h")
+rug(X, side = 1); rug(Y, side = 2)
+
+lines(locpoly2_dpill, col = "green")
+lines(locpoly2_silver, col = 2)
+lines(locpoly2_CVb, col = "blue")
+lines(locpoly2_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+                          paste("h Dpill = ", round(h_dpill,5)),
+                         paste("h (CV 1) = ", round(h_CVopt,5)),
+                         paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+<div style="page-break-after: always;"></div>
+
+
+<div style="page-break-after: always;"></div>
+### 2.3. estimation de r en regressant Y1 sur log(X)
+
+Choix du h optimal à partir de la fonction dpill, de la règle de Silverman et par validation croisée
+```{r eval=FALSE}
+ln_hDpill <- dpill(log(Xo), Yo)
+ln_hDpill
+
+ln_hSilver=1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densitÃ©
+  
+n<-length(log(X)) 
+std<-sqrt(var(log(X)))
+ln_hgridCV=exp(seq(log(std/4),log(std),length=10))# initialisation de grid pour CVbwt
+ln_hgridCV=seq(0.1,6,length=200)# grille où on évalue l'estimateur
+  
+ln_CVerr=CVbwt(ln_hgridCV,log(X),Y)
+ln_hCVopt=ln_hgridCV[which.min(ln_CVerr)]
+
+#ln_hCV <- bw.cv.grid(X = log(Xo), Y = Yo, plot.cv = TRUE)
+ln_hCVb <- bw.cv.grid(X = log(X), Y = Y)
+
+print(paste0("h_dpill : ",ln_hDpill," h_silver : ", ln_hSilver," h_CV1 ; ",ln_hCVopt," h_CV2 ; ",ln_hCVb))
+plot(ln_hgridCV,ln_CVerr,type="l")
+
+```
+
+```{r include=TRUE}
+ln_hDpill  <- 0.649558017143598 
+ln_hSilver <- 0.48691251968111 
+ln_hCVopt  <- 1.10804020100503 
+ln_hCVb    <- 0.404638091616267
+```
+
+#### Estimation de la régression de Log(X) avec Nadaraya-Watson avec la librairie stat - fonction : ksmooth 
+
+```{r echo=FALSE, fig.height=10, fig.width=10, warning=FALSE}
+par(mfrow=c(2,1))
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-12, 3, l = 200)
+
+log_ksmooth_dpill <- ksmooth(log(Xo), Yo, "normal", bandwidth = ln_hDpill)
+log_ksmooth_silver <- ksmooth(log(Xo), Yo, "normal", bandwidth = ln_hSilver)
+log_ksmooth_CVopt <- ksmooth(log(Xo), Yo, "normal", bandwidth = ln_hCVopt)
+log_ksmooth_CVb <- ksmooth(log(Xo), Yo, "normal", bandwidth = ln_hCVb)
+
+# Plot data
+#plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec ksmooth et différents h")
+plot(log(Xo), Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Estimateur de la regression de Log(X) avec Nadaraya-Watson: ksmooth et différents h")
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(log_ksmooth_dpill, col = "green")
+lines(log_ksmooth_silver, col = 2)
+lines(log_ksmooth_CVb, col = "blue") #(CV 2)
+lines(log_ksmooth_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+
+xlim <- c(-3,2)
+ylim <- c(0,1)
+plot(xlim, ylim, xlab="X",ylab="Y",main="Zoom sur l'intervalle [-3,2]")
+
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(log_ksmooth_dpill, col = "green")
+lines(log_ksmooth_silver, col = 2)
+lines(log_ksmooth_CVb, col = "blue") #(CV 2)
+lines(log_ksmooth_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+<div style="page-break-after: always;"></div>
+
+#### Estimation de la régression de Log(X) avec par polynômes locaux
+
+```{r echo=FALSE, fig.height=10, fig.width=10, warning=FALSE}
+par(mfrow=c(2,1))
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-12, 3, l = 200)
+
+
+log_locpoly2_dpill <- KernSmooth::locpoly(x = log(Xo), y = Yo, bandwidth = ln_hDpill, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+log_locpoly2_silver <- KernSmooth::locpoly(x = log(Xo), y = Yo, bandwidth = ln_hSilver, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+log_locpoly2_CVb <- KernSmooth::locpoly(x = log(Xo), y = Yo, bandwidth = ln_hCVb, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+log_locpoly2_CVopt <- KernSmooth::locpoly(x = log(Xo), y = Yo, bandwidth = ln_hCVopt, degree = 2, range.x = c(-10, 10), gridsize = gdsize)
+
+# Plot data
+#plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec ksmooth et différents h")
+plot(log(Xo), Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Estimateur de la regression de Log(X) par polynômes locaux de degrès 2: locpoly et différents h")
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(log_locpoly2_dpill, col = "green")
+lines(log_locpoly2_silver, col = 2)
+lines(log_locpoly2_CVb, col = "blue") #(CV 2)
+lines(log_locpoly2_CVopt, col = "gold")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+
+xlim <- c(-3,2.25)
+ylim <- c(0,1)
+plot(xlim, ylim, xlab="X",ylab="Y",main="Zoom sur l'intervalle [-3,2]")
+
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(log_locpoly2_dpill, col = "green")
+lines(log_locpoly2_silver, col = 2)
+lines(log_locpoly2_CVb, col = "blue") #(CV 2)
+lines(log_locpoly2_CVopt, col = "gold")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+Dans la zone à forte densité où est concentrée l'essentiel de l'information [-5,1]
+les 2 estimateurs sont très proches, quasiment confondus.
+
+
+```{r echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
+#install.packages("ibr")
+# library(ibr)
+# plot(Yo~log(Xo),xlab="X",ylab="Y")
+# iter <- 1
+# for(i in c(1,3,5,10)){
+#  tmp <- npregression(log(Xo),Yo,bandwidth=i)
+#  lines(log(Xo),predict(tmp),col=iter,lty=iter)
+#  iter <- iter+1
+#  }
+# legend(10,140,c("h=1","h=3","h=5","h=10"),col=1:4,lty=1:4)
+
+```
+
+### Représentation sur unb même graphe de la regression de Y sur X et Log(X)
+```{r echo=FALSE, fig.height=7, fig.width=10}
+#Affichage des estimateurs sur un même graphe 
+grid=seq(-13,10,length=500)# grille où on évalue l'estimateur
+
+NW = mNW(x = grid, X = Xo, Y = Yo, h = h_dpill)
+log_NW = mNW(x = grid, X = log(Xo), Y = Yo, h = ln_hDpill)
+
+locpoly <- locpoly(Xo, Yo, bandwidth = h_dpill)
+log_locpoly <- locpoly(log(Xo), Yo, bandwidth = ln_hDpill)
+
+ksmoothDpill <- ksmooth(Xo, Yo, "normal", bandwidth = h_dpill)
+log_ksmoothDpill <- ksmooth(log(Xo), Yo, "normal", bandwidth = ln_hDpill)
+
+#par(mfrow=c(2,1))
+
+xlim <- c(-12,10)
+ylim <- c(0,1)
+plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de X et Log(X) par Nadaraya–Watson et locPoly")
+
+lines(locpoly, col="blue", lty =2)
+lines(log_locpoly, col="blue", lty =1)
+lines(grid, NW, col="red", lty =2)
+lines(grid, log_NW, col="red", lty =1)
+lines(ksmoothDpill, col="black", lty =2)
+lines(log_ksmoothDpill, col="black", lty =1)
+
+legend("left", legend = c("Log(X) par locpoly h=0.649","Log(X) par NW h=0.649","Log(X) par ksmooth h=0.649", "X par locpoly h=0.218", "X par NW h=0.218", "X par ksmooth h=0.218"),
+lwd = 2, col = c("blue","red","black","blue","red","black"), lty = c(1,1,1,2,2,2))
+
+```
+
+  
+### 2.4. Remarques? Explications?
+
+Régularité
+proportionalité?
+
+
+<div style="page-break-after: always;"></div>
+## 3. Etude de la densitée  \(\mu\)(x)	 des  \(\xi\)i
+
+### 3.1 A partir du jeu de donnees Data1
+#### 3.1.1.
+  
+```{r echo=FALSE}
+ 
+  d1m <-   d1[1:1000,]
+  d1p <-   d1[1001:2000,]
+
+  Xm<- d1m$X
+  Ym<- d1m$Y1
+  
+  indm <- order(d1m[,"X"])
+  Xmo <- d1[indm,"X"]
+  Ymo <- d1[indm,"Y1"]
+  
+  paramY <- Ymo
+  paramX <- Xmo
+
+  Xp<- d1p$X
+  Yp<- d1p$Y1
+  
+  indp <- order(d1p[,"X"])
+  Xpo <- d1[indp,"X"]
+  Ypo <- d1[indp,"Y1"]
+  
+  testY <- Ypo
+  testX <- Xpo
+```
+
+La distribution approximative de ~\(\xi\)i est celle de \(\xi\)i
+
+#### 3.1.2 Représentation de la densité \(\mu\)(x)	 des  \(\xi\)i
+
+choix de h établi a la question 2.2: h=0.2186849
+
+```{r echo=FALSE}
+h<-h_dpill
+#h<-0.2186849
+n<-length(x = Xo)
+EstimR <- locpoly(paramX, paramY, degre=2, bandwidth = h,gridsize=500)
+estNu <- paramY-EstimR$y
+
+#dpih Select a Histogram Bin Width
+h_dpih <- dpih(EstimR$y)
+grid_dpih <- seq(min(EstimR$y)-h_dpih, max(EstimR$y)+h_dpih, by=h_dpih)
+  
+h_ucv <- bw.ucv(EstimR$y)
+
+# Regle Silverman (voir cours)
+h_sil <- 1.06*sqrt(var(EstimR$y))*n**(-1/5)
+
+r_ucv<-bkde(EstimR$y, kernel = "normal", bandwidth=h_ucv, truncate = TRUE)
+r_sil<-bkde(EstimR$y, kernel = "normal", bandwidth=h_sil, truncate = TRUE)
+
+```
+
+
+```{r }
+h_ucv
+h_sil
+```
+
+
+```{r  echo=FALSE, fig.height=7, fig.width=10}
+h<-h_dpih
+#h<-0.03
+nu_grid <- seq(min(estNu)-h, max(estNu)+h, by=h)
+hist(estNu, breaks=nu_grid,freq = FALSE,xlab="grid",ylab="Densité",main = expression("Histogramme pour la densité "*mu*" de "*xi*""))
+rug(estNu, side = 1); 
+
+```
+
+
+```{r  echo=FALSE, fig.height=7, fig.width=10}
+h<-h_dpih
+#h<-0.03
+nu_grid <- seq(min(estNu)-h, max(estNu)+h, by=h)
+
+h_test<-0.06
+nu_ucv<-bkde(estNu, kernel = "normal", bandwidth=h_ucv, truncate = TRUE)
+nu_sil<-bkde(estNu, kernel = "normal", bandwidth=h_sil, truncate = TRUE)
+nu_test<-bkde(estNu, kernel = "normal", bandwidth=h_test, truncate = TRUE)
+nu_hDpill<-bkde(estNu, kernel = "normal", bandwidth=hDpill, truncate = TRUE)
+nu_hcv<-bkde(estNu, kernel = "normal", bandwidth=hCV, truncate = TRUE)
+
+h<-0.135
+nu_h<-bkde(estNu, kernel = "normal", bandwidth=h, truncate = TRUE)
+
+#hist(estNu, breaks=nu_bins3,freq = FALSE,xlab="grid",ylab="Densité",main = expression("densité estimée pour la loi "*mu*" et différents h"))
+plot(nu_ucv$x,nu_ucv$y,type="l",col="black" ,xlab="grid",ylab="Densité",
+     main = expression("Estimation de la densité "*mu*" de "*xi*" et différentes fenêtres: h"))
+
+rug(estNu, side = 1); 
+
+lines(nu_ucv$x,nu_ucv$y,type="l",col="black")
+lines(nu_sil$x,nu_sil$y,type="l",col="blue")
+lines(nu_test$x,nu_test$y,type="l",col="red")
+lines(nu_hcv$x,nu_hcv$y,type="l",col="green")
+lines(nu_hDpill$x,nu_hDpill$y,type="l",col="orange")
+
+legend(1,1,c("h=0.004196189", "h=0.03026436", "h=0.06", "h=0.12006", "h=0.218685"), col=c("black", "blue", "red", "green","orange"),lty=1:1)
+```
+
+
+
+```{r  echo=FALSE, fig.height=7, fig.width=10}
+plot(nu_sil$x,nu_sil$y,type="l",col="blue" ,xlab="grid",ylab="Densité",
+     main = expression("Estimation de la densité "*mu*" de "*xi*" et différentes fenêtres: h"))
+
+rug(estNu, side = 1); 
+
+#lines(nu_sil$x,nu_sil$y,type="l",col="blue")
+lines(nu_test$x,nu_test$y,type="l",col="red")
+lines(nu_hcv$x,nu_hcv$y,type="l",col="green")
+lines(nu_hDpill$x,nu_hDpill$y,type="l",col="orange")
+
+legend(1,1,c( "h=0.03026436", "h=0.06", "h=0.12006", "h=0.218685"), col=c( "blue", "red", "green","orange"),lty=1:1)
+```
+
+ 
+On retrouve la forme du graphe de la densité d'une loi gamma
+
+
+```{r  eval=FALSE, fig.height=7, fig.width=10, include=FALSE}
+h<-h3
+h<-0.03
+nu_grid <- seq(25, 30, by=h)
+
+X<-1
+alpha<-0.025
+beta<-30
+
+alpha<-0.025
+beta<-3
+
+dgamma<-dgamma(nu_grid,shape=alpha,scale =beta)
+#dgamma2<-dgamma
+#plot(dgamma2,type="l",col="green")
+
+xlim <- c(25,30)
+ylim <- c(0,2)
+#plot(xlim, ylim, xlab="X",ylab="Y", log = "",  main="Estimation de X et Log(X) par Nadaraya–Watson et locPoly")
+#lines(nu_grid,dgamma2,type="l",col="green")
+
+plot(dgamma,type="l",col="green",xlim = xlim, ylim = ylim)
+
+lines(nu_hcv$x+26,nu_hcv$y,type="l",col="blue")
+
+# Generate some Gamma distributed data
+x <- rgamma(100, shape = 2, rate = 1);
+
+# Sort x values
+x <- sort(x);
+
+# Theoretical distribution
+x0 <- qgamma(ppoints(length(x)), shape = alpha, rate = beta);
+
+plot(x = x0, y = x, xlab = "Theoretical quantiles", ylab = "Observed quantiles");
+abline(a = 0, b = 1, col = "red");
+```
+
+#### 3.1.3. (Facultatif.) Quel est l'interêt d'avoir decoupé le jeu de donnees selon J+ et J- ?
+  
+Données d'apprentissage et données de test.
+On peut utilser le jeux de données d'apprentissage pour estimer notre lois, et le jeux de test pour calculer une erreur de prédiction.
+
+
+```{r echo=FALSE, fig.height=6, fig.width=10}
+# Bandwidth
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-1, 10, l = 200)
+
+locpoly2_dpill <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_dpill, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_silver <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_silver, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_CVb <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_CVb, degree = 2, range.x = c(-10, 10), gridsize = gdsize) 
+locpoly2_CVopt <- KernSmooth::locpoly(x = Xo, y = Yo, bandwidth = h_CVopt, degree = 2, range.x = c(-10, 10), gridsize = gdsize)
+
+# loess fits
+span <- 0.25 # The default span is 0.75, which works very bad in this scenario
+
+lo1 <- loess(Yo ~ Xo, degree = 2, span = span)
+# loess employs an "span" argument that plays the role of an variable bandwidth
+# "span" gives the proportion of points of the sample that are taken into
+# account for performing the local fit around x and then uses a triweight kernel
+# (not a normal kernel) for weighting the contributions. Therefore, the final
+# estimate differs from the definition of local polynomial estimator, although
+# the principles in which are based are the same
+
+# Prediction at x = 2
+x <- 2
+pred2<-locpoly2_dpill$y[which.min(abs(locpoly2_dpill$x - x))] # Prediction by KernSmooth::locpoly
+## [1] 0.6271391
+
+pred<-predict(lo1, newdata = data.frame(X = x)) # Prediction by loess
+
+#lines(xGrid, predict(lo0, newdata = data.frame(X = xGrid)), col = "cyan1", lty = 2)
+
+# Plot data
+# plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Polynômes locaux de degrès 2 avec locpoly et différents h")
+# rug(X, side = 1); rug(Y, side = 2)
+# 
+# lines(locpoly2_dpill, col = "green")
+# lines(locpoly2_silver, col = 2)
+# lines(locpoly2_CVb, col = "blue")
+# lines(locpoly2_CVopt, col = "gold") #darkgoldenrod")
+# 
+# legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+#                           paste("h Dpill = ", round(h_dpill,5)),
+#                          paste("h (CV 1) = ", round(h_CVopt,5)),
+#                          paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+
+Pas de fonction “predict”  On programme la fonction qui définit l’estimateur.
+
+```{r echo=FALSE, fig.height=7, fig.width=10}
+noyau=function(z,X,Y,h)
+#z est la valeur en laquelle on calcule
+#l’estimateur, h la fenêtre,
+#(X,Y) l’échantillon d’apprentissage.
+{
+Vect=exp(-((X-z)**2)/(2*h**2))
+noyau=(sum(Y*Vect))/(sum(Vect))
+}
+
+h<-hDpill
+#Calcul de l’erreur d’apprentissage
+m=length(paramX)
+pred.ker.app=c(rep(0,m))
+
+for (j in 1:m){
+pred.ker.app[j]=noyau(paramX[j],paramX,paramY,h)}
+sqrt(mean((pred.ker.app-paramY)**2))
+
+#Calcul de l’erreur sur l’échantillon test :
+p=length(testX)
+pred.ker.test=c(rep(0,p))
+
+for (j in 1:p){
+pred.ker.test[j]=noyau(testX[j],testX,testY,h)}
+sqrt(mean((pred.ker.test-testY)**2))
+
+```
+
+#### 3.1.4. La densitée  \(\mu\)	peut-elle être gaussienne ? 
+
+Protocole empirique de verification
+http://www.biostat.ulg.ac.be/pages/Site_r/Normalite.html
+
+- 1. test du QQPlot
+  
+```{r echo=FALSE, fig.height=7, fig.width=10}
+ Xnorm<-rnorm(3000,0,1)
+ norm<-dnorm(Xnorm,mean(Xnorm),sd(Xnorm))
+
+ qqnorm(Xnorm, datax=TRUE,  main = expression("Q-Q plot pour la loi Normale N(0,1)"))
+ qqline(Xnorm,datax=TRUE,col=2)
+```
+
+
+```{r echo=FALSE, fig.height=7, fig.width=10}
+
+xlim <- c(0,0.2)
+ylim <- c(-2,2)
+
+qqnorm(nu_hcv$y, datax=TRUE,  main = expression("Q-Q plot pour la loi "*mu*""),ylim=ylim)
+qqline(nu_hcv$y,datax=TRUE,col=4)
+qqline(Xnorm,datax=TRUE,col=2,ylim=ylim)
+
+```
+
+  => non 
+  ou bien gaussien par morceau
+  
+  
+```{r echo=FALSE, fig.height=7, fig.width=10}
+xlim <- c(0,0.2)
+ylim <- c(0,2)
+
+qqnorm(nu_hDpill$y, datax=TRUE,  main = expression("Q-Q plot pour la loi "*mu*""),ylim=ylim)
+qqline(nu_hDpill$y,datax=TRUE,col=4)
+qqline(Xnorm,datax=TRUE,col=2,ylim=ylim)
+```
+
+- 2. test de shapiro
+  
+```{r include=TRUE}
+ shapiro.test(nu_hcv$y)
+ shapiro.test(norm)
+```
+  Le test de Shapiro-Wilk donne une probabilité de dépassement de p-value < 2.2e-16, nettement < à 0.05. 
+  L'hypothèse de normalité est rejettéee.
+
+- 3. test de Kolmogorov-Smirnoff
+Dans ce cas-ci également, il existe dans R une commande pour tester l'ajustement de données 
+à une loi normale via le test de Kolmogorov-Smirnov:
+
+```{r include=TRUE}
+ ks.test(nu_hcv$y,"pnorm",mean(nu_hcv$y),sd(nu_hcv$y))
+```
+
+p-value faible rejetté
+  
+  
+#### 3.1.5. homoscedasticité du modèle
+(Facultatif.) Comment peut-on tester si le modele est bien homoscedastique ?
+  
+<div style="page-break-after: always;"></div>  
+  
+### 3.2 A partir du jeu de donnees Data2
+  
+On cherche a estimer \( \mu \)(x) et \( \sigma \)(x)^2$. Pour cela, on coupe a nouveau l'echantillon en deux et on considere a nouveau ksi(i):
+ 
+```{r include=FALSE}
+d2 = read.csv("Data2.csv")
+
+d2m <-   d2[1:1000,]
+d2p <-   d2[1001:2000,]
+  
+X2m<- d2m$X
+Y2m<- d2m$Y2
+  
+ind2m <- order(d2m[,"X"])
+X2mo <- d2[ind2m,"X"]
+Y2mo <- d2[ind2m,"Y2"]
+  
+param2Y <- Y2mo
+param2X <- X2mo
+```
+
+```{r include=TRUE}
+summary(d2)
+```
+
+```{r plot3.2.2_d2, echo=FALSE, fig.height=7, fig.width=10}
+plot(param2X,param2Y, main = "Jeux de données Data2 observations X en abscisse et Y en ordonnée.")
+
+```
+
+#### 3.2.1. Justifier qu'en regressant \( \xi\)i sur Xi on obtient un estimateur de \( \sigma \)(x)^2$.
+  
+##### Implémentation et le visualisation graphique
+  
+choix de h etabli a la question 2.2: h=0.2186849
+   
+```{r fig.height=7, fig.width=10, include=FALSE}
+ 
+  h<-0.2186849
+
+  fit2 <- locpoly(param2X, param2Y, bandwidth = h,gridsize=1000)
+  estNu2 <- param2Y-fit2$y
+
+  fit22 <- locpoly(param2X, estNu2, bandwidth = h,gridsize=1000)
+  #dpih Select a Histogram Bin Width
+  h32 <- dpih(fit22$y)
+  
+  grid32 <- seq(min(fit22$y)-h32, max(fit22$y)+h32, by=h32)
+  
+  h32=bw.ucv(fit22$y)
+  h32
+  
+  # Regle Silverman (voir cours)
+  hh32=1.06*sqrt(var(fit22$y))*n**(-1/5)
+  hh32
+  
+  resH32=bkde(fit22$y, kernel = "normal", bandwidth=h32, truncate = TRUE)
+  resHH32=bkde(fit22$y, kernel = "normal", bandwidth=hh32, truncate = TRUE)
+
+
+h<-hDpill
+#h<-0.2186849
+n<-length(x = Xo)
+locpoly2_hDpill <- locpoly(param2X, param2Y, degre=2, bandwidth = h,gridsize=1000)
+estNu2 <- param2Y-locpoly2_hDpill$y
+
+estSigma <- locpoly(param2X,estNu2, degre=2, bandwidth = h,gridsize=1000)
+
+plot(estSigma$x,estSigma$y,type="l",col="blue" ,xlab="grid",ylab="Densité",main = expression("densité estimée pour la loi "*mu*" et différentes fenêtres: h"))
+
+```
+
+```{r plot3.1.1, eval=FALSE, fig.height=7, fig.width=10}
+ #hist(fit22$y, breaks=bins32,freq = FALSE,xlab="grid",ylab="Densité", main=expression("Histogramme et estimateurs de "*sigma*"^2"))
+
+ #lines(resH32$x,resH32$y,type="l",col="blue")
+ #lines(resHH32$x,resHH32$y,type="l",col="red")
+ #legend(6,3,c("h=0.01079333", "h=0.08372629"), col=c("blue", "red"),lty=1:1)
+```
+
+
+```{r warning=FALSE, include=FALSE}
+
+h<-hDpill
+#h<-0.2186849
+n<-length(x = Xo)
+kernel_hDpill <- locpoly(param2X, param2Y, degre=2, bandwidth = h,gridsize=1000)
+estNu2 <- param2Y-kernel_hDpill$y
+
+h_dpih <- dpih(kernel_hDpill$y)
+#h<-0.03
+nu_grid2 <- seq(min(kernel_hDpill$y)-h_dpih, max(kernel_hDpill$y)+h_dpih, by=h_dpih)
+
+h_ucv2=bw.ucv(kernel_hDpill$y)
+h_ucv2
+  
+# Regle Silverman (voir cours)
+h_sil2=1.06*sqrt(var(kernel_hDpill$y))*n**(-1/5)
+h_sil2
+
+sze<-200
+#h_test<-0.06
+mu_ucv2<-bkde(estNu2,bandwidth=h_ucv2, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+mu_sil2<-bkde(estNu2, bandwidth=h_sil2,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+mu_test<-bkde(estNu2, bandwidth=h_test,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+mu_hDpill<-bkde(estNu2,bandwidth=hDpill,gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+mu_hcv<-bkde(estNu2,  bandwidth=hCV, gridsize = size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+
+```
+
+
+```{r warning=FALSE, echo=FALSE}
+h_ucv2
+h_sil2
+hCV
+hDpill
+```
+
+```{r fig.height=7, fig.width=10, echo=FALSE}
+
+plot(mu_ucv2$x,mu_ucv2$y,type="l",col="black" ,xlab="grid",ylab="Densité",   
+     main = expression("Densité estimée pour la loi "*mu*" et différentes fenêtres: h"))
+rug(estNu, side = 1); 
+
+lines(mu_sil2$x,mu_sil2$y,type="l",col="red")
+#lines(sigma_hcv$x,sigma_hcv$y,type="l",col="green")
+lines(mu_hDpill$x,mu_hDpill$y,type="l",col="blue")
+legend(1,1,c( "h=0.01467149",  "h=0.11381", "h=0.2186849"), col=c( "black", "red", "blue"),lty=1:1)
+
+```
+
+```{r fig.height=7, fig.width=10, echo=FALSE}
+plot(mu_hcv$x,mu_hcv$y,type="l",col="red" ,xlab="grid",ylab="Densité", main = expression("Densité estimée pour la loi "*mu*" et différentes fenêtres: h"))
+lines(mu_hDpill$x,mu_hDpill$y,type="l",col="blue")
+#legend(1,1,c("h=0.11381","h=0.2186849"), col=c("red","blue"),lty=1:1)
+legend("right", legend = c("h=0.11381","h=0.2186849"), col=c("red","blue"),lty=1:1)
+
+```
+
+
+```{r plot3.2.2, echo=FALSE, fig.height=7, fig.width=10}
+#plot(param2X,param2Y)
+plot(param2X, param2Y,pch=20,cex=0.3,xlab="X",ylab="Y", main=expression("Nuage des points du jeux de test Data2"))
+
+kernel_hDpill <- locpoly((mu_hDpill$y)**2, param2X, degre=2, bandwidth = hDpill,gridsize=200)
+
+# lines(estNu2,type="l",col="blue")
+plot(kernel_hDpill$x,kernel_hDpill$y,type="l",col="red", xlab="grid",ylab="Densité de  ", 
+     main=expression("Estimation de "*sigma*"^2 par Regression de "*xi*"^2 sur X"))
+#lines(sigma_hDpill$x,sigma_hDpill$y,type="l",col="blue")
+legend(0,8,c(expression("Estimateur de "*sigma*"^2"), expression("Estimateur de "*sigma*"^2")), col=c("blue", "red"),lty=1:1)
+```
+
+  
+##### En comparant avec le jeu de donnees  (Figure 1 a droite), retrouve-t-on un resultat attendu:
+=> symétrie, centrée en 0  
+  
+  
+#### 3.2.2. La densitée x->\(\mu\)(x) peut-elle etre gaussienne ? 
+
+Proposer un protocole pour le verifier empiriquement et l'implementer. On pourra penser a renormaliser ksi par la fonction
+estimee a la question precedente et s'aider des questions de la Section 3.1. 
+
+http://www.biostat.ulg.ac.be/pages/Site_r/Normalite.html
+
+- 1- test du QQPlot
+```{r plotA2, echo=FALSE, fig.height=7, fig.width=10}
+  qqnorm(mu_hDpill$y, datax=TRUE,col=1, main=expression("Q-Q plot de normalité pour la loi "*mu*""))
+  qqline(mu_hDpill$y,datax=TRUE,col=2)
+ # qqline(Xnorm,datax=TRUE,col=2)
+#mean(mu_hDpill$y)
+  
+  y <- rchisq(500, df = 3)
+## Q-Q plot for Chi^2 data against true theoretical distribution:
+qqplot(qchisq(ppoints(500), df = 3), y,
+       main = expression("Q-Q plot for" ~~ {chi^2}[nu == 3]))
+qqline(y, distribution = function(p) qchisq(p, df = 3),
+       probs = c(0.1, 0.6), col = 2)
+mtext("qqline(*, dist = qchisq(., df=3), prob = c(0.1, 0.6))")
+```
+
+  => non 
+  ou bien gaussien par morceau
+  
+- 2- test de shapiro
+  
+```{r include=TRUE}
+ shapiro.test(mu_hDpill$y)
+```
+  Le test de Shapiro-Wilk donne une probabilité de dépassement de p-value < 2.2e-16, nettement < à 0.05. 
+  L'hypothèse de normalité est rejettéee.
+
+- 3- test de Kolmogorov-Smirnoff
+Dans ce cas-ci également, il existe dans R une commande pour tester l'ajustement de données 
+à une loi normale via le test de Kolmogorov-Smirnov:
+
+```{r include=TRUE}
+ ks.test(mu_hDpill$y,"pnorm",mean(mu_hDpill$y),sd(mu_hDpill$y))
+```
+
+p-value faible rejetté
+
+```{r include=FALSE}
+ 
+ 
+```
+
+
+```{r plot3.1.2, echo=FALSE}
+
+```
+  
+<div style="page-break-after: always;"></div>
+
+#### Raffinement pour h: 0.4 - 0.5
+```{r include=FALSE, warning=FALSE}
+  res042 <- bkde(x=X, bandwidth=0.42, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err042 <- mean((res042$y-X)**2)
+  r2_042 <- R2(res042,X)
+  b_042  <- Biais(res042,X)
+  mae_042<- MAE(res042,X) 
+  rmse_042<-RMSE(res042,X)
+  
+  res043 <- bkde(x=X, bandwidth=0.43, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err043 <- mean((res043$y-X)**2)
+  r2_043 <- R2(res043,X)
+  b_043  <- Biais(res043,X)
+  mae_043<- MAE(res043,X) 
+  rmse_043<-RMSE(res043,X)
+  
+  res044 <- bkde(x=X,bandwidth=0.44, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err044 <- mean((res044$y-X)**2)
+  r2_044 <- R2(res044,X)
+  b_044  <- Biais(res044,X)
+  mae_044<- MAE(res044,X) 
+  rmse_044<-RMSE(res044,X)
+  
+  res045 <- bkde(x=X,bandwidth=0.45, gridsize= size, kernel = "normal",canonical=FALSE, truncate = TRUE)
+  err045 <- mean((res045$y-X)**2)
+  r2_045 <- R2(res045,X)
+  b_045  <- Biais(res045,X)
+  mae_045<- MAE(res045,X) 
+  rmse_045<-RMSE(res045,X)
+```
+
+bandwidth h | error quadratic |     R2     |   Biais   |     MAE    |      RMSE    |
+----------- | --------------- | ---------- | --------- | ---------- | ------------ | 
+0.40        | `r err040 `     |`r r2_040 ` |`r b_040 ` |`r mae_040 `| `r rmse_040 `|
+0.42        | `r err042 `     |`r r2_042 ` |`r b_042 ` |`r mae_042 `| `r rmse_042 `|
+0.43        | `r err043 `     |`r r2_043 ` |`r b_043 ` |`r mae_043 `| `r rmse_043 `|
+0.44        | `r err044 `     |`r r2_044 ` |`r b_044 ` |`r mae_044 `| `r rmse_044 `|
+0.45        | `r err045 `     |`r r2_045 ` |`r b_045 ` |`r mae_045 `| `r rmse_044 `|
+0.50        | `r err050 `     |`r r2_050 ` |`r b_050 ` |`r mae_050 `| `r rmse_050 `|
+
+```{r plot03_d1, echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
+  #hist(X, breaks=bins,freq = FALSE )
+  plot(res040$x,res040$y,type="l",col=1, 
+       main ="Estimation de la densité par noyaux pour différents h entre: 0.4 et 0.5", xlab="X", ylab="Y", xlim=c(-1,5) )
+  rug(X)
+
+  lines(res050$x,res050$y,type="l",col=6)
+  lines(res042$x,res042$y,type="l",col=2)
+  lines(res043$x,res043$y,type="l",col=3)
+  lines(res044$x,res044$y,type="l",col=4)
+  lines(res045$x,res045$y,type="l",col=5)
+  
+  legend(3,0.3,c("h=0.4", "h=0.42", "h=0.43", "h=0.44", "h=0.45", "h=0.5"),col=1:6,lty=1:1)
+```
+
+Les estimations de la tensité g(x) de X pour des valeurs de h comprise entre 0.4 et 0.5 sont très proches.
+A ce niveau il est difficile de déterminer empiriquement le h optimal.
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+#### Estimation de la régression de Log(X) avec Nadaraya-Watson à partir de la fonction recodé NW 
+Avec différentes fenêtres: h =  `r Dpill ln_hDpill ` , h Silverman =  `r ln_hsilver `, h CV méthode1 (h_CV1) =`r ln_hCVopt `, h CV méthode2 (h_CV2)=`r ln_hCVb `
+
+```{r echo=FALSE, fig.height=10, fig.width=10, warning=FALSE}
+par(mfrow=c(2,1))
+
+d1o <- order(d1[,"X"])
+Xo <- d1[d1o,"X"]
+Yo <- d1[d1o,"Y1"]
+xGrid <- seq(-12, 3, l = 200)
+
+mNW_dpill <- mNW(x = xGrid, X = Xo, Y = Yo, h = ln_hDpill)  
+mNW_silver <- mNW(x = xGrid, X = Xo, Y = Yo, h = ln_hSilver) 
+mNW_CVb <- mNW(x = xGrid, X = Xo, Y = Yo, h = ln_hCVb) 
+mNW_CVopt <- mNW(x = xGrid, X = Xo, Y = Yo, h = ln_hCVopt)
+
+# Plot data
+#plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec ksmooth et différents h")
+plot(log(Xo), Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Estimateur de la regression de Log(X) avec Nadaraya-Watson: ksmooth et différents h")
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(xGrid,mNW_dpill, col = "green")
+lines(xGrid,mNW_silver, col = 2)
+lines(xGrid,mNW_CVb, col = "blue")
+lines(xGrid,mNW_CVopt, col = "gold")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+
+xlim <- c(-3,2)
+ylim <- c(0,1)
+plot(xlim, ylim, xlab="X",ylab="Y",main="Zoom sur l'intervalle [-3,2]")
+rug(log(Xo), side = 1); rug(Yo, side = 2)
+
+lines(xGrid,mNW_dpill, col = "green")
+lines(xGrid,mNW_silver, col = 2)
+lines(xGrid,mNW_CVb, col = "blue")
+lines(xGrid,mNW_CVopt, col = "gold") #darkgoldenrod")
+
+legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
+                          paste("h Dpill = ", round(ln_hDpill,5)),
+                         paste("h (CV 1) = ", round(ln_hCVopt,5)),
+                         paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+
+#### Comparaison des différentes méthodes  
+```{r echo=FALSE, fig.height=10, fig.width=10}
+par(mfrow=c(2,1))
+
+ksmooth_dpill <- ksmooth(Xo, Yo, "normal", bandwidth = h_dpill)
+ksmooth_silver <- ksmooth(Xo, Yo, "normal", bandwidth = h_silver)
+ksmooth_CVopt <- ksmooth(Xo, Yo, "normal", bandwidth = h_CVopt)
+ksmooth_CVb <- ksmooth(Xo, Yo, "normal", bandwidth = h_CVb)
+
+# Plot data
+plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Nadaraya–Watson avec ksmooth et différents h")
+rug(X, side = 1); rug(Y, side = 2)
+
+lines(ksmooth_dpill, col = "green")
+lines(ksmooth_silver, col = 2)
+lines(ksmooth_CVb, col = "blue") #(CV 2)
+lines(ksmooth_CVopt, col = "gold") 
+
+legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+                          paste("h Dpill = ", round(h_dpill,5)),
+                         paste(" h (CV 1) = ", round(h_CVopt,5)),
+                         paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+
+# Plot data
+plot(Xo, Yo,pch=20,cex=0.01,xlab="X",ylab="Y",main="Polynômes locaux de degrés 2 avec locpoly et différents h")
+rug(X, side = 1); rug(Y, side = 2)
+
+lines(locpoly2_dpill, col = "green")
+lines(locpoly2_silver, col = 2)
+lines(locpoly2_CVb, col = "blue")
+lines(locpoly2_CVopt, col = "gold") 
+
+legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
+                          paste("h Dpill = ", round(h_dpill,5)),
+                         paste("h (CV 1) = ", round(h_CVopt,5)),
+                         paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
+```
+
+
+Remarque: La fonction density calcul automatiquement le h optimal.
+On peut regarder les différentes estimations de la densité issues de noyaux différents.
+Comme ennoncé plus haut les estimations sont proches (excepté pour le noyau rectangulaire)
+
+```{r fig.height=7, fig.width=10, echo=FALSE, warning=FALSE}
+# Quickly compute a kernel density estimator and plot the density object
+# Automatically chooses bandwidth and uses normal kernel
+plot(density(x = X), main ="Estimation de la densité par la fonction density pour différents noyaux où h = 0.4294", xlab="X", ylab="Y")
+rug(X, side = 1)
+# Select a particular bandwidth (0.5) and kernel (Epanechnikov)
+lines(density(x = X, bw = h_density, kernel = "epanechnikov"), col = 2)
+lines(density(x = X, bw = h_density, kernel = "gaussian"), col = 3)
+lines(density(x = X, bw = h_density, kernel = "rectangular"), col = 4)
+lines(density(x = X, bw = h_density, kernel = "triangular"), col = 5)
+lines(density(x = X, bw = h_density, kernel = "biweight"), col = 6)
+lines(density(x = X, bw = h_density, kernel = "cosine"), col = 7)
+lines(density(x = X, bw = h_density, kernel = "optcosine"), col = 8)
+legend(6,0.3,c("density", "epanechnikov", "gaussian", "rectangular", "triangular", "biweight", "cosine", "optcosine"),col=1:8,lty=1:1)
+
+```
