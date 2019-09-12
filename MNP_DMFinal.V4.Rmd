@@ -1151,7 +1151,7 @@ Ce qui nous ammène à penser que l'hypthèse d'homoscédasticité est bien vér
   
 ### 3.2 A partir du jeu de donnees Data2
   
-On cherche a estimer \( \mu \) et $\sigma^2$. Pour cela, on coupe a nouveau l'echantillon en deux et on considère a nouveau  \(\xi\)iy
+On cherche a estimer \( \mu \) et $\sigma^2$. Pour cela, on coupe a nouveau l'echantillon en deux et on considère a nouveau  $\tilde{\xi_i}$
  
 ```{r include=FALSE}
 d2 = read.csv("Data2.csv")
@@ -1257,7 +1257,7 @@ Ensuite la densité des observations est faible.
   
 #### 3.2.2. La densitée \(\mu\) peut-elle être gaussienne
 
-On estime la densité $\mu(x)$ des $\xi_i$ à partir de l'estimation  $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ où $\hat{\sigma}^2(X_i)$ est l'estimateur de ${\sigma}^2(X_i)$ obtenu précédement.
+On estime la densité $\mu$ des $\xi_i$ à partir de l'estimation  $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ où $\hat{\sigma}^2(X_i)$ est l'estimateur de ${\sigma}^2(X_i)$ obtenu précédement.
 
 - On recherche tout d'abord le h optimal avec les méthodes habituelles: fonction dpik, règle de Silverman, fonction density, validation croisée.
 ```{r echo=FALSE, fig.height=12, fig.width=10}
@@ -1327,7 +1327,7 @@ legend("left", legend = c("Normale",
                           paste("h Silverman = ", round(h_sil_mu,5))), lwd = 2, col = c("red","blue","green"))
 ```
 
-A la vue des graphiques la densité $\mu(x)$ ne semble pas être gaussienne.
+A la vue des graphiques la densité $\mu$ ne semble pas être gaussienne.
 On a cependant gagné en symétrie par rapport au cas précédent étudié au §3.1.4
 On va vérifier celà avec un QQPtot et des tests.
 La fonction que l'on étudie est la fonction obtenue à partir de la méthode bkde de R pour la fenêtre h : h=`r h_dpik_mu `
