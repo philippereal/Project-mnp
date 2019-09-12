@@ -955,8 +955,8 @@ La transformation log(X) a permis de linéariser la zone à forte densité. C'es
 
 ```
 
-$\begin{align} \text{On a la représentation suivante : } Y_i - r(X_i) = \sigma\xi_i \text{ (cas homoscédastique } \sigma  \text{ est constant)}\end{align}$
-$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}(X_i) && \text{où } \hat{r}(x) \text{ est un estimateur de r(x).} \end{align}$
+$\begin{align} \text{On a la représentation suivante } Y_i - r(X_i) = \sigma\xi_i \text{ (cas homoscédastique } \sigma  \text{ est constant)}\end{align}$
+$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}(X_i) \text{ où } \hat{r}(x) \text{ est un estimateur de r(x).} \end{align}$
 $\begin{align} \text{La distribution approximative de } \tilde{\xi_i} \text{ est celle de } \xi_i \text{ à la constante multiplicative près }  \sigma. \end{align}$
 
 #### $\begin{align}\text{3.1.2 Représentation de la densité } \mu(x) \text{ des } \xi_i\end{align}$
@@ -1092,7 +1092,7 @@ rug(estNu)
 ```
 
 Le QQPlot, graphique d'adéquation des quantiles rejette l'hypothèse de normalité si l'on regarde la globalité de l'échantillon.
-C'est moins sûre si l'on regarde le sous ensemble qui correspond au quantile 85% qu vaut 0.337.
+C'est moins sûre si l'on regarde le sous ensemble qui correspond au quantile 85% qui vaut 0.337 (2ème graphique).
  
 - 2. test de shapiro
   
@@ -1114,7 +1114,7 @@ La densité $\mu$ n'est donc pas gaussienne.
   
 <div style="page-break-after: always;"></div>
 
-#### 3.1.5. homoscedasticité du modèle
+#### 3.1.5. homoscédasticité du modèle
 Pour tester que le modele est bien homoscédastique, on peut tracer un graphe des résidus.
 
 ```{r echo=FALSE, fig.height=12, fig.width=10, warning=FALSE}
@@ -1167,7 +1167,7 @@ Ce qui nous ammène à penser que l'hypothèse d'homoscédasticité est bien vé
   
 ### 3.2 A partir du jeu de donnees Data2
   
-On cherche a estimer \( \mu \) et $\sigma^2$. Pour cela, on coupe a nouveau l'echantillon en deux et on considère a nouveau  $\tilde{\xi_i}$
+On cherche à estimer \( \mu \) et $\sigma^2$. Pour cela, on coupe a nouveau l'echantillon en deux et on considère à nouveau  $\tilde{\xi_i}$
  
 ```{r include=FALSE}
 d2 = read.csv("Data2.csv")
@@ -1197,14 +1197,14 @@ plot(param2X,param2Y,xlab="X",ylab="Y2",cex=0.5, main = "Jeux de données Data2 
 
 #### 3.2.1. Justifier qu'en regressant $\xi_i$ sur $X_i$ on obtient un estimateur de $\sigma^2$
 
-$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}(X_i) && \text{où } \hat{r}(x) \text{ est un estimateur de r(x).} \end{align}$
+$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}(X_i) \text{ où } \hat{r}(x) \text{ est un estimateur de r(x).} \end{align}$
 <br>
 $\begin{align} \text{Ainsi } \tilde{\xi^2_i} = (Y_i - \hat{r}(X_i))^2  \end{align}$
 
-$\begin{align} \text{En remplaçant par l'expression de } Y_i = r(X_i) + \sigma(X_i)  \xi_i \text{ on obtient } \end{align}$
+$\begin{align} \text{En remplaçant par l'expression de } Y_i = r(X_i) + \sigma(X_i)  \xi_i \text{  on obtient } \end{align}$
 $\begin{align} \tilde{\xi^2_i} = (r(X_i) + \sigma(X_i)  \xi_i - \hat{r}(X_i))^2  \end{align}$
 
-$\begin{align} \text{Puis en développant on obtient } \end{align}$
+$\begin{align} \text{Puis en développant } \end{align}$
 $\begin{align} \tilde{\xi^2_i} = (r(X_i) - \hat{r}(X_i))^2 + \sigma(X_i)^2  \xi_i^2  + 2(r(X_i) -\hat{r}(X_i)) \sigma(X_i) \xi_i \end{align}$
 
 $\begin{align} \text{On conditionne par rapport à } X_i  \text{ et on utilise l'hypothèse d'indépendance de } \xi_i \text{ }\end{align}$
@@ -1215,7 +1215,7 @@ $\begin{align} E(\tilde{\xi^2_i} \mid X_i) = E((r(X_i) - \hat{r}(X_i))^2 \mid X_
 
 $\begin{align} \text{Ce qui donne } E(\tilde{\xi^2_i} \mid X_i) = (r(X_i) - \hat{r}(X_i))^2 + \sigma(X_i)^2 \end{align}$
 
-$\begin{align} \text{Comme } \hat{r}(X_i) \text{ est un estimateur de }  r(X_i) \text{ on a le résultat.}  \end{align}$
+$\begin{align} \text{Comme } \hat{r}(X_i) \text{ est un estimateur de }  r(X_i) \text{ on a bien le résultat.}  \end{align}$
 <div style="page-break-after: always;"></div>  
 
 #### Implémentation et visualisation
