@@ -1298,8 +1298,7 @@ Ensuite la densité des observations est faible.
 
   
 #### 3.2.2. La densité \(\mu\) peut-elle être gaussienne
-
-On estime la densité $\mu$ des $\xi_i$ à partir de l'estimation  $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ où $\hat{\sigma}^2(X_i)$ est l'estimateur de ${\sigma}^2(X_i)$ obtenu précédement.
+Avant d'appliquer les tests classiques (QQPlot, Test de Shapiro et KS) on va regarder comment se comportent les estimateurs à noyaux gaussiens. On estime la densité $\mu$ des $\xi_i$ à partir de l'estimation  $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ où $\hat{\sigma}^2(X_i)$ est l'estimateur de ${\sigma}^2(X_i)$ obtenu précédement. 
 
 - On recherche tout d'abord le h optimal avec les méthodes habituelles: fonction dpik, règle de Silverman, fonction density, validation croisée.
 ```{r echo=FALSE, fig.height=12, fig.width=10}
@@ -1318,10 +1317,9 @@ h_density_mu<-d_mu$bw
 print(paste0("h_dpik : ",h_dpik_mu," h_silver : ", h_sil_mu," h_density ; ",h_density_mu," h_ucv ; ",h_ucv_mu))
 ```
 
-
 - On estime la densité à partir de la fonction bkde que l'on représente graphiquement:
 
-```{r echo=FALSE, fig.height=7, fig.width=10}
+```{r echo=FALSE, fig.height=6, fig.width=10}
 #par(mfrow=c(2,1))
 
 estMu_ks = (Y2m[order(X2m)]-Ye_ks$y)/sigma2_ks$y
@@ -1370,9 +1368,8 @@ legend("left", legend = c("Normale",
 ```
 
 A la vue des graphiques les estimateurs de la densité $\mu$ semblent se rapprocher d'une gaussienne.
-On a gagné en symétrie et sur la frome générale par rapport au cas précédent étudié au §3.1.4.
-On va vérifier celà avec un QQPtot et des tests.
-La fonction que l'on étudie est la fonction obtenue à partir de la méthode bkde de R pour la fenêtre h : h=`r h_dpik_mu `
+On a gagné en symétrie et sur la forme générale par rapport au cas précédent étudié au §3.1.4.
+Maintenant on va vérifier l'hypothèse de normalité des données $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ avec un QQPlot et des tests.
 
 - 1- test du QQPlot
 ```{r echo=FALSE, fig.height=10, fig.width=10, warning=FALSE}
@@ -1392,7 +1389,7 @@ Mais si on regarde le sous intervalle [-2,2] des quantiles de l'estimation de la
 De plus sur cette intervalle on a environ 75% des individus (lois quasi symétrique et 2 quantile à 86.5%).
 Par contre sorti de cette intervalle on diverge rapidement.
 
-- 2- test de shapiro
+- 2- test de Shapiro
 ```{r echo=FALSE}
  shapiro.test(estMu_ks)
 ```
