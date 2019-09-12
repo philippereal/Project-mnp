@@ -261,7 +261,7 @@ RMSE<-function(Estim,Y)
 ```
 
 
-## 1. Etude de la densitée g des X
+## 1. Etude de la densité g des X
 $\text{On utilise les données Data1. Jeux de données } (X_i,Y_i) \text{ i=1,..,2000}$ 
 $\begin{align} \text{Avec la représentation suivante : } Y_i = r(X_i) + \sigma\xi_i(X_i) \text{ (cas homoscédastique } \sigma  \text{ ne dépend pas de X)}\end{align}$
 
@@ -516,19 +516,28 @@ legend(4,1,c("bw.ucv = 0.056","dpik = 0.144", "density = 0.429", "h Silverman = 
 
 ### 1.3 QQPlot - g(x) densité Uniforme
      
-Implementation d'un QQ-plot pour vérifier empiriquement l'hypothese g(x) suit (ou pas) une densité Uniforme U=1/10 sur [0,10]
+Implementation d'un QQ-plot pour vérifier empiriquement l'hypothèse g(x) suit (ou pas) une densité Uniforme U=1/10 sur [0,10]
 ```{r plot3_QQ, echo=FALSE, fig.height=4, fig.width=10}
-  #ylim<-c(0,2)
-  qqplot(runif(200, min=0, max=10), Xo,cex=0.5, ylab="Quantile - g(X)",xlab="Quantile - Uniforme U=1/10", #ylim=ylim,
+ylim<-c(-1,10)
+xlim<-c(0,10)
+
+qqplot(runif(500, min=0, max=10), X,cex=0.5, xlim=xlim,ylim=ylim,
+         xlab="Quantile estimateur de g(X)",
+         ylab="Quantile théorique - Uniforme U=1/10", #ylim=ylim,
          main = expression("Q-Q plot pour la loi Uniforme"~{}[U == 1/10]))
-  qqline(Xo,datax=TRUE,col="red")
-  abline(h=min(Xo), col="blue")
-  abline(h=2, col="blue")
-  rug(X,side=2)
-  q2<-quantile(X, probs = c(0.62))
+
+qqline(X,datax=TRUE,col="red")
+#abline(h=min(Xo), col="blue")
+#abline(h=2, col="blue")
+rug(X,side=1)
+
+q2<-quantile(X, probs = c(0.62))
+
 ```
-A la vue du graphique QQPlot par rapport à la loi uniforme (U=1/10) l'hypothèse selon laquelle g est uniforme n'est pas si déraisonnable.
-En particulier pour les $X_i \in [0+,2]$ qui représente une forte concentration des données environ 63%. Mias celà ne semble pas suffisant pour valider l'hypothèse.
+A la vue du graphique QQPlot par rapport à la loi uniforme (U=1/10) l'hypothèse selon laquelle g est uniforme n'est pas valide.
+En particulier dans la zone où X est entre 0 et 2 et où X est au delà de 6.
+La densité des individus est faible sur la dernière zone (X>6) mais à contrario très importante pour (X<2).
+On ne peut donc accépter l'hypothèse.
 
 ### 1.4 Zone de l'espace où l'estimation de r sera plus précise
 On aura plus de précision où la densité des données est importante. 
@@ -914,7 +923,7 @@ On remarque que les estimateurs basés sur la régression de $Y_i$ sur $log(X_i)
 La transformation log(X) a permis de linéariser la zone à forte densité. C'est ce que l'on a remarqué au §2.1.
 
 <div style="page-break-after: always;"></div>
-## 3. Etude de la densitée \(\mu\) des  $\xi_i$
+## 3. Etude de la densité \(\mu\) des  $\xi_i$
 
 ### 3.1 A partir du jeu de donnees Data1
 
@@ -1063,26 +1072,33 @@ pred<-predict(lo1, newdata = data.frame(X = x)) # Prediction by loess
 ```
 
 
-#### 3.1.4. La densitée  \(\mu\)	peut-elle être gaussienne
+#### 3.1.4. La densité  \(\mu\)	peut-elle être gaussienne
 A la vue des graphiques de densité, on a trop de dissymétrie pour avoir une gaussienne.
 On va le préciser avec le protocole empirique de verification suivant:
 
 - 1. test du QQPlot
 
-```{r echo=FALSE, fig.height=5, fig.width=8}
-xlim <- c(0,0.2)
-ylim <- c(-2,2)
+```{r echo=FALSE, fig.height=5, fig.width=10, warning=FALSE}
+par(mfrow=c(1,2))
 
-qqnorm(nu_hdpik$y, datax=TRUE,  main = expression("Q-Q plot pour la loi "*mu*""),ylim=ylim)
-qqline(nu_hdpik$y,datax=TRUE,col=4)
+qqnorm(estNu, datax=TRUE,  main = expression("Q-Q plot pour la loi "*mu*""))
+qqline(estNu,datax=TRUE,col="red")
+rug(estNu)
+ylim <- c(-0.7,0.34)
+qqnorm(estNu, datax=TRUE, ylim=ylim, 
+       main = expression("Q-Q plot pour la loi "*mu*" quantile 85% q=0.337"))
+qqline(estNu,datax=TRUE,col="red")
+rug(estNu)
 ```
 
-Le QQPlot graphique d'adéquation des quantiles rejette l'hypothèse de normalité. 
+Le QQPlot, graphique d'adéquation des quantiles rejette l'hypothèse de normalité si l'on regarde la globalité de l'échantillon.
+C'est moins sûre si l'on regarde le sous ensemble qui correspond au quantile 85% qu vaut 0.337.
  
 - 2. test de shapiro
   
 ```{r echo=FALSE}
- shapiro.test(nu_hdpik$y)
+estimMu<-estNu
+ shapiro.test(estimMu)
 ```
 Le test de Shapiro-Wilk donne une p-value < 2.2e-16. 
 L'hypothèse de normalité est rejetée.
@@ -1090,10 +1106,10 @@ L'hypothèse de normalité est rejetée.
 - 3. test de Kolmogorov-Smirnoff
 
 ```{r echo=FALSE}
- ks.test(nu_hdpik$y,"pnorm",mean(nu_hdpik$y),sd(nu_hdpik$y))
+ ks.test(estimMu,"pnorm",mean(estimMu),sd(estimMu))
 ```
 
-la p-value est faible l'hypothèse de normalité est rejetée.
+la p-value n'est pas significative l'hypothèse de normalité est rejetée.
 La densité $\mu$ n'est donc pas gaussienne.
   
 <div style="page-break-after: always;"></div>
@@ -1145,7 +1161,7 @@ abline(h=0, col="red")
 ```
 On ne remarque pas de structures particulières ou de tendances.
 La répartition est assez uniforme, en particuliers dans la zone de forte densité (proche de x=0). 
-Ce qui nous ammène à penser que l'hypthèse d'homoscédasticité est bien vérifiée. 
+Ce qui nous ammène à penser que l'hypothèse d'homoscédasticité est bien vérifiée. 
 
 <div style="page-break-after: always;"></div>  
   
@@ -1176,7 +1192,7 @@ summary(d2)
 ```
 
 ```{r plot3.2.2_d2, echo=FALSE, fig.height=7, fig.width=10}
-plot(param2X,param2Y,xlab="X",ylab="Y2", main = "Jeux de données Data2 observations X en abscisse et Y en ordonnée.")
+plot(param2X,param2Y,xlab="X",ylab="Y2",cex=0.5, main = "Jeux de données Data2 observations X en abscisse et Y2 en ordonnée.")
 ```
 
 #### 3.2.1. Justifier qu'en regressant $\xi_i$ sur $X_i$ on obtient un estimateur de $\sigma^2$
@@ -1207,7 +1223,7 @@ $\begin{align} \text{Comme } \hat{r}(X_i) \text{ est un estimateur de }  r(X_i) 
 A partir de l'estimateur $\hat{r}(X_i)$ on va construire un estimateur de $\sigma(X_i)^2$ 
 Pour celà on construit un estimateur en regressant sur $X_i$ le carré des résisus: $(Y_i-\hat{r}(X_i))^2$
 On utilise la fonction ksmooth et locpoly (degrès 2).
-```{r echo=FALSE, fig.height=12, fig.width=10}
+```{r echo=FALSE, fig.height=7, fig.width=10, warning=FALSE}
 #Pour ne pas avoir à réordonner ap utilsation de ksmooth on par d'un jeux ordonné en X.
 h_pill_1=dpill(X2m,Y2m)
 
@@ -1231,8 +1247,8 @@ sigma2_poly2=locpoly(sort(X2m),(Y2m[order(X2m)]-Ye_poly2$y)**2,bandwidth=h_pill_
 #estimateur de la densité mu
 #estMu_poly2 = (Y2m[order(X2m)]-Ye_poly2$y)/sigma2_poly2$y
 
-xlim<-c(0,9)
-ylim<-c(-5,14)
+xlim<-c(0,7)
+ylim<-c(-5,10)
 plot(param2X, param2Y,pch=20,cex=0.3,xlab="X",ylab=expression("Y - Estimateur de "*sigma*"2"), xlim=xlim, ylim=ylim, main=expression("Données de Data2 et estimation de la variance "*sigma*"2"))
 rug(param2X)
 
@@ -1245,6 +1261,32 @@ legend("top", legend = c(paste("Par ksmooth avec h=" ,round(h_pill_ks,5)),
 #print(paste0("Err prév initiale : ",var((Y2m[order(X2m)]-Ye$y)**2)," Err prév cas Heterostatique : ", mean(((Y2m[order(X2m)]-Ye$y)**2-s2$y)**2)))
 
 ```
+```{r echo=FALSE, fig.height=4, fig.width=10, warning=FALSE}
+par(mfrow=c(1,2))
+
+xlim<-c(0,3)
+ylim<-c(-3,5)
+plot(param2X, param2Y,pch=20,cex=0.3,xlab="X",ylab=expression("Y - Estimateur de "*sigma*"2"), xlim=xlim, ylim=ylim, main=expression("Données Data2 et estimation de "*sigma*"2 sur [0,3]"))
+rug(param2X)
+
+lines(sigma2_ks$x,sigma2_ks$y,type="l",col="red") 
+lines(sigma2_poly2$x,sigma2_poly2$y,type="l",col="blue") 
+
+legend("top", legend = c(paste("Par ksmooth avec h=" ,round(h_pill_ks,5)),
+                         paste("Par locpoly avec h=" ,round(h_pill_poly2,5))), lwd = 2, col = c("red","blue"))
+
+xlim<-c(0,1.5)
+ylim<-c(-1,2)
+plot(param2X, param2Y,pch=20,cex=0.3,xlab="X",ylab=expression("Y - Estimateur de "*sigma*"2"), xlim=xlim, ylim=ylim, main=expression("Données Data2 et estimation de "*sigma*"2 sur [0,1.5]"))
+rug(param2X)
+
+lines(sigma2_ks$x,sigma2_ks$y,type="l",col="red") 
+lines(sigma2_poly2$x,sigma2_poly2$y,type="l",col="blue") 
+
+legend("top", legend = c(paste("Par ksmooth avec h=" ,round(h_pill_ks,5)),
+                         paste("Par locpoly avec h=" ,round(h_pill_poly2,5))), lwd = 2, col = c("red","blue"))
+
+```
 
 En comparant au jeux de données (nuage de points Data2) on retrouve bien le résultat attendu.
 Peu de variance où la densité est élevé dans l'intervalle [0+,1]. Les points sont proches les uns des autres.
@@ -1255,7 +1297,7 @@ Ensuite la densité des observations est faible.
 <div style="page-break-after: always;"></div>  
 
   
-#### 3.2.2. La densitée \(\mu\) peut-elle être gaussienne
+#### 3.2.2. La densité \(\mu\) peut-elle être gaussienne
 
 On estime la densité $\mu$ des $\xi_i$ à partir de l'estimation  $(Y_i-\hat{r}(X_i))/\hat{\sigma}^2(X_i)$ où $\hat{\sigma}^2(X_i)$ est l'estimateur de ${\sigma}^2(X_i)$ obtenu précédement.
 
@@ -1297,7 +1339,7 @@ mu_hdensity<-bkde(estMu_ks, kernel = "normal", bandwidth = h_density_mu, truncat
 xlim<-c(-20,12)
 ylim<-c(0,0.4)
 hist(estMu_ks, breaks=mu_grid,freq = FALSE,xlab="X - grid",ylab=expression("Y - Estimateur de "*mu*""), xlim=xlim, ylim=ylim,
-     main = expression("Histogramme et Estimateurs de la densité "*mu*" de "*xi*" pour différentes fenêtres: h  - cas hétérostatique"))
+     main = expression("Histogramme et Estimateurs de la densité "*mu*" de "*xi*" pour différentes fenêtres: h  - cas hétéroscédastique"))
 rug(estMu_ks, side = 1); 
 
 c<-curve(dnorm(x), add=T,col="red")
@@ -1314,7 +1356,7 @@ legend("left", legend = c("Fit normale",
 
 ```{r echo=FALSE, fig.height=5, fig.width=10}
 plot(mu_hdpik$x,mu_hdpik$y,type="l",col="blue",xlim=xlim, ylim=ylim,xlab="grid",ylab="Densité",
-     main = expression("Estimateurs de la densité "*mu*" de "*xi*" pour différentes fenêtres: h  - cas hétérostatique"))
+     main = expression("Estimateurs de la densité "*mu*" de "*xi*" pour différentes fenêtres: h  - cas hétéroscédastique"))
 rug(estMu_ks, side = 1); 
 
 #lines(mu_hdensity $x,mu_hdensity $y,type="l",col="orange")
@@ -1327,35 +1369,40 @@ legend("left", legend = c("Normale",
                           paste("h Silverman = ", round(h_sil_mu,5))), lwd = 2, col = c("red","blue","green"))
 ```
 
-A la vue des graphiques la densité $\mu$ ne semble pas être gaussienne.
-On a cependant gagné en symétrie par rapport au cas précédent étudié au §3.1.4
+A la vue des graphiques les estimateurs de la densité $\mu$ semblent se rapprocher d'une gaussienne.
+On a gagné en symétrie et sur la frome générale par rapport au cas précédent étudié au §3.1.4.
 On va vérifier celà avec un QQPtot et des tests.
 La fonction que l'on étudie est la fonction obtenue à partir de la méthode bkde de R pour la fenêtre h : h=`r h_dpik_mu `
 
 - 1- test du QQPlot
-```{r echo=FALSE, fig.height=7, fig.width=10}
-  qqnorm(mu_hdpik$y, datax=TRUE,col=1, main=expression("Q-Q plot de normalité pour la loi "*mu*""))
-  qqline(mu_hdpik$y,datax=TRUE,col=2)
+```{r echo=FALSE, fig.height=10, fig.width=10, warning=FALSE}
+par(mfrow=c(2,1))
+qqnorm(estMu_ks, datax=TRUE,col=1, main=expression("Q-Q plot de normalité pour la loi "*mu*""))
+  qqline(estMu_ks,datax=TRUE,col=2)
+
+ylim<-c(-2,2)  
+qqnorm(estMu_ks, datax=TRUE,col=1, ylim= ylim,
+       main=expression("Q-Q plot - Quantiles  de l'estimateur de la loi "*mu*" dans [-2,2]"))
+  qqline(estMu_ks,datax=TRUE,col=2)
+  rug(estMu_ks)
 ```
 
-L'hypothèse de normalité est rejettée.
-Ou bien gaussien sur un intervalle très faible, autour de 0: ]0+,0.02[
-  
+L'hypothèse de normalité semble rejetée sur la globalité.
+Mais si on regarde le sous intervalle [-2,2] des quantiles de l'estimation de la loi $\mu$ on a une bonne adéquation à la loi normale.
+De plus sur cette intervalle on a environ 75% des individus (lois quasi symétrique et 2 quantile à 86.5%).
+Par contre sorti de cette intervalle on diverge rapidement.
+
 - 2- test de shapiro
-  
-```{r include=TRUE}
- shapiro.test(mu_hdpik$y)
+```{r echo=FALSE}
+ shapiro.test(estMu_ks)
 ```
-Le test de Shapiro-Wilk donne une de p-value < 2.2e-16. 
-L'hypothèse de normalité est rejetée.
+Le test de Shapiro-Wilk donne une de p-value significative < 2.2e-16. L'hypothèse de normalité est rejetée.
 
 - 3- test de Kolmogorov-Smirnoff
-
-```{r warning=FALSE, include=TRUE}
- ks.test(mu_hdpik$y,"pnorm",mean(mu_hdpik$y),sd(mu_hdpik$y))
+```{r warning=FALSE, echo=FALSE}
+ ks.test(estMu_ks,"pnorm",mean(estMu_ks),sd(estMu_ks))
 ```
 
-la p-value est faible l'hypothèse de normalité est rejetée.
-La densité $\mu$ n'est donc pas gaussienne.
+La p-value est significative l'hypothèse de normalité est rejetée.
+D'après ces derniers tests la densité $\mu$ ne peut ête gaussienne.
 
-<div style="page-break-after: always;"></div>
