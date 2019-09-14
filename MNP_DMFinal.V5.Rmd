@@ -439,14 +439,14 @@ $\hat{J}(h)={\displaystyle \int_{\rm I\!R} {\hat{f}_{n,h}(x)}^2\,dx}-\frac{1}{2n
 <br>
 Avec $\hat{f}_{(-i),n,h}$ obtenu en calculant l'estimateur sur l'échantillon privé de la donnée $X_i$.
 <br>
-On choisi $\hat{h}$ qui minimise ce risque. $\hat{J}(\hat{h})=min_h \hat{J}(h)$
+On choisi $\hat{h}$ qui minimise ce risque $\hat{J}(\hat{h})=min_h \hat{J}(h)$
 <br>
 On obtient cette fenêtre optimale par la fonction bw.ucv de la librairie stats qui implémente la validation croisée, mais aussi en utilisant d'autres méthodes.    
   
 #### 1.2.1 Fenêtre h optimale par validation croisée 
 
 ##### Utilisation de la fonction bw.ucv library stats
-  
+Cette fonction est adaptèe à la validation croisée en densité.   
 ```{r warning=FALSE, echo=FALSE}
   h_ucv<-bw.ucv(X)
   h_ucv
@@ -474,7 +474,7 @@ On obtient le même résultat avec la fonction:   bw.nrd
   estim_sil<-bkde(X, kernel = "normal", bandwidth=h_sil, truncate = TRUE)
   
   plot(estim_ucv$x,estim_ucv$y,type="l",col="black", lty=3, 
-       main ="Estimateurs par noyaux gaussien de la densité g des X et différents h.", xlab="X", ylab="Y")
+       main ="Estimateurs par noyaux gaussien de la densité g des X et différents h.", xlab="X", ylab="densité g estimée")
  
   lines(estim_sil$x,estim_sil$y,type="l",col="red", lty=1)
   #lines(resH$x,dnorm(resH$x,3,2),type="l",col="blue")
@@ -578,7 +578,7 @@ Donc plus de précision dans l'intervalle [0+dela , 5.46]. La précision diminue
 
 ## 2. Reconstruction de r(x)
 On est dans le cadre de l'estimation non paramétrique, on reprend les hypothèses classiques.
-On utilise les données de Data1, (X,Y)
+On utilise les données de Data1, (X,Y1).
 
 ### 2.1 Linéarité de la fonction r
 Pour vérifier la linéarité on va tracer sur un même graphique, le nuage de points ainsi que la droite de régression linéaire Y~X.
@@ -619,42 +619,49 @@ Dans la région $X_i\in[-5,1]$ où l'on retouve la quasi totalité de l'échanti
 <div style="page-break-after: always;"></div>
 
 ### 2.2. Construction d'un estimateur non-parametrique de r(x) par noyaux régularisants
+Le noyau permet de lisser le bruit $\xi_i$ et localise l'information au niveau d'un point, en y ajoutant un poids. Un peu comme une distribution ou masse de Dirac.
 Ces méthodes de lissage par noyau consistent à effectuer au voisinage de chaque point une régression locale.
 Qui dans le cas Nadaraya-Watson est linéaire et est polynomiale dans le cas des méthodes par polynômes locaux. 
 La localisation est assurée par la fonction de poids le noyau K. 
-On le prend gaussien $K(x) = \frac{1}{\sqrt{2\pi}}e^{-\frac{1}{2}x^2}$
+On le prend ici gaussien $K(x) = \frac{1}{\sqrt{2\pi}}e^{-\frac{1}{2}x^2}$
 <br>
 Plus précisémment en posant $K_h(x_0-x)=\frac{1}{h}K(\frac{x_0-x}{h})$ on a en utilisant la représentation $Y_i=r(X_i)+\sigma\xi_i$ que
-<br>
-$\frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)Y_i = \frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)r(X_i) + \frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)\sigma\xi_i$
-<br>
-$\approx_{n \to \infty}{\rm I\!E}[K_h(x_0-X_i)r(X_i)]= \int_{\rm I\!R}K_h(x_0-x)r(x)g(x)dx)\approx_{h \to 0} r(x_0)g(x_0)$
+$\frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)Y_i = \frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)r(X_i) + \frac{1}{n}\sum_{i=1}^{n}K_h(x_0-X_i)\sigma\xi_i \text{  (*)}$ 
+$\text{(*)}\approx_{n \to \infty}{\rm I\!E}[K_h(x_0-X_i)r(X_i)] = \int_{\rm I\!R}K_h(x_0-x)r(x)g(x)dx)\approx_{h \to 0} r(x_0)g(x_0)$
 <br>
 On a vu au §1 que l'on peut estimer le terme $g(x_0)$ par un estimateur à noyau. Il nous reste donc à estimer $r(x_0)$. 
 <br>
-
-L'estimateur de Nadaraya-Watson est l'estimateur définit par la formule suivante
+L'estimateur de Nadaraya-Watson de $r(x_0)$ est l'estimateur définit par la formule suivante.
 <br>
-$\hat{r}_{n,h}(x_0)=\frac{n^{-1}\sum_{i=1}^{n}K_h(x_0-X_i)Y_i}{n^{-1}\sum_{i=1}^{n}K_h(x_0-X_i)} =  \sum_{i=1}^{n}w_{i,n}(x_0)Y_i$
-<br>
-avec $w_{i,n}(x_0)=\frac{K_h(x_0-X_i)}{\sum_{i=1}^{n}K_h(x_0-X_i)}$
+$\hat{r}_{n,h}(x_0)=\frac{n^{-1}\sum_{i=1}^{n}K_h(x_0-X_i)Y_i}{n^{-1}\sum_{i=1}^{n}K_h(x_0-X_i)} =  \sum_{i=1}^{n}w_{i,n}(x_0)Y_i$ avec $w_{i,n}(x_0)=\frac{K_h(x_0-X_i)}{\sum_{i=1}^{n}K_h(x_0-X_i)}$
 <br>
 Pour l'estimateur par polynômes locaux, l'approximation localement constante est remplacée par un polynôme.
 
 Pour implémenter ces estimateurs, on commence par déterminer le paramètre de lissage h. Puis à partir des paramètres h obtenus on implémente les méthodes de lissage de Nadaraya-Watson et les méthodes par polynômes locaux.
 
 #### Détermination de la fenêtre h
+La validation croisée dans le cas de la régression se décompose comme suit :
+<br>
+On définit, pour i=1,2,...,n l'estimateur $\hat{r}_{(-i),n,h}(x_0)=\sum_{j=1}^{n}Y_jw_{j,n,h,(-i)}$  avec $w_{j,n,h,(-i)}(x_0)=\frac{w_{j,n,h}(x_0)}{\sum_{k\ne i}w_{k,n,h}(x_0)}$ si $j \ne i$ et 0 sinon.
+<br>
+On définit le score de validation leave-one-out $\hat{R}(h) = \frac{1}{n} \sum_{i=1}^{n}(Y_i - \hat{r}_{(-i),n,h}(X_i))^2$
+<br>
+On choisi $\hat{h}$ qui minimise la fonction de score, $\hat{h} = min_h\hat{R}(h)$.
+<br>
+Pour la validation croisé, dans le cas de la régression on utilise la fonction codée en R vue en cours CVbwt (h_CV1) et bw.cv.grid (h_CV2).
+<br>
 On obtient différentes fenêtres h obtenues à partir des méthodes: fonction dpill de R, h de Silverman, validation croisée.
 
 ```{r include=FALSE,eval=FALSE, echo=FALSE}
 require(KernSmooth)
-d1o <- order(d1[,"X"])
-Xo <- d1[d1o,"X"]
-Yo <- d1[d1o,"Y1"]
+data1o <- order(data1[,"X"])
+Xo <- data1[data1o,"X"]
+Yo <- data1[data1o,"Y1"]
 
 #h_grid<-CVbwt(grid,Xo,Yo)
 
 h_dpill<-dpill(X,Y)# adapte a du bruit Gaussien
+std<-sqrt(var(X))
 h_silver<-1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densitÃ©
   
 n<-length(X) 
@@ -668,8 +675,7 @@ h_CVb <- bw.cv.grid(X = X, Y = Y)
 ```
 
 ```{r er, echo=FALSE, fig.height=4}
-
-h_dpill <- 0.218684860290525 
+h_dpill <- 0.21868486029053 
 h_silver <- 0.505695020156574 
 h_CVopt <- 0.337185929648241 
 h_CVb <- 0.120060113212087
@@ -772,18 +778,19 @@ legend("top", legend = c( paste("h (CV 2) = ",round(h_CVb,5)),
                          paste("h (CV 1) = ", round(h_CVopt,5)),
                          paste("h Silverman = ", round(h_silver,5))), lwd = 2, col = c("blue","green","gold",2))
 ```
-
+On remarque que cet estimateurest plus régulier que Madaraya-Watson implémenté par ksmooth.
 <div style="page-break-after: always;"></div>
 ### 2.3. Estimation de r en regressant Y1 sur log(X)
 On suit la même démarche qu'au §2.2. On commence par déterminer un h optimal à partir de la fonction dpill, de la règle de Silverman et par validation croisée.
-
+Et ensuite on implémente avec le paramètre h calculé l'estimateur de Nataraya-Watson avec la fonction de R ksmooth et l'estimateur par polynômes locaux avec la fonctionde R locpoly. 
 ```{r eval=FALSE, echo=FALSE}
 
 ln_hDpill <- dpill(log(Xo), Yo)
-ln_hSilver<-1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densitÃ©
   
 n<-length(log(X)) 
 std<-sqrt(var(log(X)))
+ln_hSilver<-1.06*std*n**(-1/(4+1))# adapte a du bruit Gaussien/densitÃ©
+
 ln_hgridCV<-exp(seq(log(std/4),log(std),length=10))# initialisation de grid pour CVbwt
 ln_hgridCV<-seq(0.1,6,length=200)# grille où on évalue l'estimateur
   
@@ -796,8 +803,8 @@ ln_hCVb <- bw.cv.grid(X = log(X), Y = Y)
 ```
 
 ```{r echo=FALSE }
-ln_hDpill  <- 0.649558017143598 
-ln_hSilver <- 0.48691251968111 
+ln_hDpill  <- 0.649558017143592
+ln_hSilver <- 0.48691251968111
 ln_hCVopt  <- 1.10804020100503 
 ln_hCVb    <- 0.404638091616267
 print(paste0("h_dpill : ",ln_hDpill," h_silver : ", ln_hSilver," h_CV1 ; ",ln_hCVopt," h_CV2 ; ",ln_hCVb))
@@ -907,7 +914,7 @@ legend("top", legend = c( paste("h (CV 2) = ",round(ln_hCVb,5)),
                          paste("h (CV 1) = ", round(ln_hCVopt,5)),
                          paste("h Silverman = ", round(ln_hSilver,5))), lwd = 2, col = c("blue","green","gold",2))
 ```
-Ces estimateurs sont plus régularisants par construction que l'estimateur de Nadaraya-Watson construits avec ksmooth.
+Ces estimateurs par polynômes locaux sont plus régularisants par construction que l'estimateur de Nadaraya-Watson construits avec ksmooth.
 ```{r echo=FALSE, fig.height=8, fig.width=10, warning=FALSE}
 #install.packages("ibr")
 # library(ibr)
@@ -1003,7 +1010,7 @@ La transformation log(X) a permis de linéariser la zone à forte densité. C'es
 ```
 
 $\begin{align} \text{On a la représentation suivante } Y_i - r(X_i) = \sigma\xi_i \text{ (cas homoscédastique } \sigma  \text{ est constant)}\end{align}$
-$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}(X_i) \text{ où } \hat{r}(x) \text{ est un estimateur de r(x).} \end{align}$
+$\begin{align} \text{Par définition } \tilde{\xi_i} = Y_i - \hat{r}_{n,h}^{(-)}(X_i) \text{ où } \hat{r}_{n,h}^{(-)}(x) \text{ est un estimateur de r(x).} \end{align}$
 $\begin{align} \text{La distribution approximative de } \tilde{\xi_i} \text{ est celle de } \xi_i \text{ à la constante multiplicative près }  \sigma. \end{align}$
 
 #### $\begin{align}\text{3.1.2 Représentation de la densité } \mu(x) \text{ des } \xi_i\end{align}$
@@ -1064,8 +1071,7 @@ legend("top", legend = c( paste("h (CV) = ",round(h_ucv2,5)),
 
 
 #### 3.1.3. Interêt d'avoir decoupé le jeu de donnees selon J+ et J-
-  
-On a aisni un jeux de données d'apprentissage et de test.
+On a ainsi un jeux de données d'apprentissage et de test.
 On peut utiliser le jeux de données d'apprentissage pour estimer et construire nos estimateurs, le jeux de test pour calculer une erreur de prédiction.
 A partir de cette erreur de prédiction on a un critère pour choisir le meilleur estimateurs  
 
@@ -1121,8 +1127,8 @@ pred<-predict(lo1, newdata = data.frame(X = x)) # Prediction by loess
 
 
 #### 3.1.4. La densité  \(\mu\)	peut-elle être gaussienne
-A la vue des graphiques de densité, on a trop de dissymétrie pour avoir une gaussienne.
-On va le préciser avec le protocole empirique de verification suivant:
+On peut déjà remarquer qu'à la vue des graphiques des estimateurs de la densité  $\tilde{\xi_i}$, on a trop de dissymétrie pour avoir une gaussienne.
+On va le préciser avec le protocole empirique de verification ci-après que l'on va appliquer aux données $\hat{r}_{n,h}^{(-)}(X_i)-Y_i=\tilde{\xi_i}$
 
 - 1. test du QQPlot
 
@@ -1457,5 +1463,5 @@ Le test de Shapiro-Wilk donne une de p-value significative < 2.2e-16. L'hypothè
 ```
 
 La p-value est significative l'hypothèse de normalité est rejetée.
-D'après ces derniers tests la densité $\mu$ ne peut ête gaussienne.
+D'après ces derniers tests la densité $\mu$ ne peut être gaussienne.
 
